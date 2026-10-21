@@ -1,0 +1,42 @@
+/* A+ Core 1 depth pack — 3.0 Hardware (more explained questions) */
+(function () {
+  var X = window.X, Q = window.Q, T = window.TYPE;
+  X.add('a3', { gateN: 24, qs: [
+    Q("Which RAID level stripes data for speed with no redundancy?", "RAID 0", ["RAID 1", "RAID 5", "RAID 10"], "RAID 0 maximizes speed/capacity but any single disk loss destroys the array.", 3),
+    Q("Which RAID level mirrors data so one of two disks can fail?", "RAID 1", ["RAID 0", "RAID 5", "RAID 6"], "RAID 1 writes identical copies to both disks.", 3),
+    Q("Which RAID level uses striping with distributed parity and needs at least three disks?", "RAID 5", ["RAID 0", "RAID 1", "RAID 10"], "RAID 5 tolerates one disk failure and balances capacity with redundancy.", 3),
+    Q("Which RAID level combines mirroring and striping, needing at least four disks?", "RAID 10", ["RAID 5", "RAID 0", "RAID 1"], "RAID 10 mirrors pairs then stripes across them for speed and redundancy.", 3),
+    Q("Which storage interface offers the highest throughput for an SSD?", "NVMe over PCIe (M.2)", ["SATA III", "USB 2.0", "IDE/PATA"], "NVMe uses PCIe lanes, far faster than the SATA bus.", 3),
+    Q("A customer wants the most storage for the least money and does not need speed. Which drive?", "A high-capacity HDD", ["An NVMe SSD", "A small SATA SSD", "Optane only"], "Spinning HDDs have the lowest cost per gigabyte.", 3),
+    Q("Which memory generations are physically and electrically incompatible with each other?", "DDR3, DDR4 and DDR5", ["DDR4 and DDR4L only", "PC100 and PC133", "SODIMM and DIMM pins"], "Each DDR generation has a different notch and voltage; you cannot mix them.", 3),
+    Q("Which RAM feature detects and corrects single-bit errors and is used in servers?", "ECC", ["Dual channel", "XMP", "CL latency"], "Error-correcting code memory improves reliability for critical systems.", 3),
+    Q("To enable dual-channel memory, the modules should be:", "Matched and installed in the correct (often same-colored) slots", ["Different sizes in any slot", "Only one module", "DDR3 with DDR4"], "Dual channel needs matched pairs in the proper slots.", 3),
+    Q("Which motherboard form factor is the largest of these?", "ATX", ["microATX", "Mini-ITX", "Nano-ITX"], "Size order: ATX > microATX > Mini-ITX.", 3),
+    Q("Which expansion slot is used for a modern graphics card?", "PCIe x16", ["PCIe x1", "PCI", "AGP"], "GPUs use the x16 slot for maximum bandwidth.", 3),
+    Q("A PC loses its date/time and BIOS settings every time it is unplugged. What should be replaced?", "The CMOS/RTC battery", ["The power supply", "The CPU", "The GPU"], "The coin-cell battery keeps the real-time clock and firmware settings.", 3),
+    Q("Which component transfers heat from the CPU to the heat sink and should be reapplied after removal?", "Thermal paste", ["Dielectric grease", "Flux", "Silicone caulk"], "Thermal paste fills microscopic gaps for efficient heat transfer.", 3),
+    Q("Which laser-printer imaging step permanently bonds toner to the paper with heat and pressure?", "Fusing", ["Charging", "Exposing", "Developing"], "The fuser melts the toner into the paper; it is hot — a burn hazard.", 3),
+    Q("An inkjet printer produces streaky output with missing lines. What is the first maintenance step?", "Run the head-cleaning/alignment utility", ["Replace the fuser", "Replace the motherboard", "Reinstall Windows"], "Clogged nozzles cause streaks; cleaning/aligning the heads usually fixes it.", 3),
+    Q("Which printer type is best for multipart carbon forms?", "Impact (dot-matrix)", ["Laser", "Inkjet", "Thermal"], "Impact printers strike through multiple layers at once.", 3),
+    Q("A power supply makes a selection between 115V and 230V input. Setting it wrong can:", "Damage the PSU or prevent the system from powering on", ["Improve performance", "Add storage", "Change the IP address"], "Match the PSU input voltage to the local mains.", 3),
+    Q("Which connector delivers power to a modern motherboard?", "24-pin ATX connector", ["SATA data cable", "HDMI", "RJ45"], "The 24-pin supplies main board power; an 8-pin feeds the CPU.", 3),
+    Q("Which cable carries both high-resolution video and audio to a monitor or TV?", "HDMI", ["VGA", "PS/2", "RJ45"], "HDMI (and DisplayPort) carry digital video and audio.", 3),
+    Q("Which CPU architecture is known for low power use in phones and Apple Silicon?", "ARM", ["x86", "x64", "IA-64"], "ARM is efficient and dominates mobile; x86/x64 dominate desktops/servers.", 3),
+    Q("A technician must size a power supply for a new gaming PC with a high-end GPU. What matters most?", "Sufficient wattage and the correct PCIe power connectors", ["The number of USB ports", "The case color", "The DNS setting"], "Match wattage headroom and the GPU's power connectors.", 3),
+    Q("Which boot firmware supports GPT disks over 2 TB, Secure Boot, and a graphical interface?", "UEFI", ["Legacy BIOS", "CMOS", "POST"], "UEFI replaced legacy BIOS and enables GPT, Secure Boot and faster boot.", 3),
+    Q("A clicking noise and failed read attempts come from a mechanical drive. What should the technician do?", "Back up data immediately and replace the drive", ["Defragment it repeatedly", "Reinstall the OS on it", "Increase the page file"], "A clicking HDD is failing; preserve data first.", 3),
+    Q("Which RAM module type would a server use for maximum reliability?", "Registered ECC DIMM", ["Unbuffered consumer DIMM", "SODIMM", "Flash DIMM"], "Servers use ECC (often registered/buffered) memory.", 3),
+    Q("Which storage choice best upgrades an old laptop with a slow spinning drive at low cost?", "A 2.5-inch SATA SSD", ["A second HDD", "More optical drives", "A faster CMOS battery"], "A SATA SSD is a cheap, dramatic speed upgrade.", 3),
+    Q("Which connector powers SATA drives?", "15-pin SATA power connector", ["Molex only", "24-pin ATX", "PCIe 8-pin"], "SATA drives use the flat 15-pin power connector (older drives used Molex).", 3),
+    Q("A laser printer leaves a faint duplicate image further down the page. Which parts are usually involved?", "The drum or fuser (ghosting)", ["The network card", "The RAM", "The power switch"], "Ghosting comes from the imaging drum not fully clearing or a worn fuser.", 3),
+    Q("Which cooling method moves heat with a pump, radiator and coolant for high-performance CPUs?", "Liquid (AIO) cooling", ["Passive heatsink only", "Case sticker", "Thermal tape alone"], "Liquid cooling handles high heat loads better than basic air coolers.", 3),
+    Q("What does POST check when a computer first powers on?", "Basic hardware (CPU, RAM, video) before loading the OS", ["The DNS cache", "The printer spooler", "The antivirus"], "Power-On Self-Test verifies core hardware and beeps/codes on failure.", 3),
+    Q("A technician must connect four high-speed NVMe drives. Which interface do M.2 NVMe drives use?", "PCIe lanes", ["SATA bus", "USB 2.0", "Parallel ATA"], "NVMe rides on PCIe, not the slower SATA bus.", 3),
+    Q("Which best describes GPT versus MBR partitioning?", "GPT supports disks over 2 TB and many partitions; MBR is legacy and limited", ["MBR is newer than GPT", "GPT only works on Linux", "They are identical"], "GPT pairs with UEFI; MBR is the older BIOS scheme.", 3),
+    Q("Why should a technician never open a power supply unit?", "It can hold a dangerous charge in its capacitors", ["It voids the DNS", "It resets the BIOS", "It is glued shut only"], "PSU capacitors store lethal charge even when unplugged — replace, don't repair.", 3),
+    Q("A build will run several virtual machines. Which upgrade helps the most?", "More RAM (and CPU cores)", ["A louder fan", "A bigger monitor", "A faster mouse"], "VMs are memory- and CPU-hungry; add RAM and cores.", 3),
+    Q("Which printer uses heat-sensitive paper and is common in receipts, with no ink or toner?", "Thermal printer", ["Laser", "Inkjet", "Impact"], "Thermal printers darken special paper with heat.", 3),
+    Q("A customer's PC randomly reboots under heavy load with no blue screen. Which component is a likely suspect?", "A failing or undersized power supply", ["The DNS server", "The sound card driver", "The webcam"], "Unstable power causes load-related reboots; also check overheating.", 3),
+    Q("Which RAID level can survive the simultaneous failure of two drives?", "RAID 6", ["RAID 5", "RAID 0", "RAID 1"], "RAID 6 uses double parity to tolerate two disk failures.", 3)
+  ] });
+})();

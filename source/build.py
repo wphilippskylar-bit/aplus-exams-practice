@@ -7,7 +7,7 @@ ROOT = os.path.dirname(os.path.abspath(__file__))
 SRC, DIST = os.path.join(ROOT, 'src'), os.path.join(ROOT, 'dist')
 APP = {'name': 'A+ Range', 'short': 'A+ Range', 'id': 'aplus', 'glyph': 'A+', 'color': '#f5b942', 'bg': '#0a0e13',
        'desc': 'CompTIA A+ Core 1 (220-1201) and Core 2 (220-1202) from zero to confident IT tech: locked learning path, flashcards, explained questions and hands-on labs.'}
-JS = ['ac0.js', 'a1.js', 'a2.js', 'a3.js', 'a4.js', 'a5.js', 'b1.js', 'b2.js', 'b3.js', 'b4.js', 'alab.js', 'labpbq.js', 'course-wire.js', 'app.js']
+JS = ['ac0.js', 'a1.js', 'a2.js', 'a3.js', 'a4.js', 'a5.js', 'b1.js', 'b2.js', 'b3.js', 'b4.js', 'x0.js', 'xa1.js', 'xa2.js', 'xa3.js', 'xa4.js', 'xa5.js', 'xb1.js', 'xb2.js', 'xb3.js', 'xb4.js', 'alab.js', 'labpbq.js', 'course-wire.js', 'app.js']
 
 def read(n): return open(os.path.join(SRC, n), encoding='utf-8').read()
 

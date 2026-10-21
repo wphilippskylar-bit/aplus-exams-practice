@@ -1,0 +1,43 @@
+/* A+ Core 2 depth pack — 1.0 Operating Systems (more explained questions) */
+(function () {
+  var X = window.X, Q = window.Q, T = window.TYPE;
+  X.add('b1', { gateN: 30, qs: [
+    Q("Which Windows command checks and repairs protected system files?", "sfc /scannow", ["chkdsk /f", "ipconfig /all", "gpupdate"], "System File Checker verifies and restores corrupted system files.", 1),
+    Q("Which command repairs the Windows component store/image when sfc cannot fix a file?", "DISM /Online /Cleanup-Image /RestoreHealth", ["format C:", "sfc /verifyonly", "diskpart clean"], "DISM repairs the underlying image that sfc draws from.", 1),
+    Q("Which command checks a disk for errors and bad sectors, fixing them with a switch?", "chkdsk /f (or /r)", ["sfc /scannow", "robocopy", "tasklist"], "chkdsk /f fixes file-system errors; /r also locates bad sectors.", 1),
+    Q("Which file system supports permissions, encryption (EFS), journaling and large volumes on Windows?", "NTFS", ["FAT32", "exFAT", "ext4"], "NTFS adds security and reliability FAT lacks; FAT32 caps files at 4 GB.", 1),
+    Q("Which file system is best for a USB flash drive shared between Windows and macOS with large files?", "exFAT", ["NTFS", "FAT32", "ext4"], "exFAT is cross-platform and has no 4 GB file limit.", 1),
+    Q("Which Windows edition is required to join a corporate Active Directory domain?", "Pro (or Enterprise)", ["Home", "S mode only", "Starter"], "Windows Home cannot join a domain; Pro and above can.", 1),
+    Q("A technician must see and end a runaway process consuming the CPU. Which tool?", "Task Manager", ["Disk Cleanup", "Device Manager", "Event Viewer"], "Task Manager shows resource use and lets you end processes.", 1),
+    Q("Which tool manages hardware devices and driver updates/rollbacks in Windows?", "Device Manager", ["Task Scheduler", "Resource Monitor", "Registry Editor"], "Device Manager handles drivers and flags problem hardware.", 1),
+    Q("Which command displays full IP configuration including DNS and DHCP details?", "ipconfig /all", ["ping", "netstat", "sfc"], "ipconfig /all shows addresses, gateway, DNS and DHCP lease info.", 1),
+    Q("Which command tests reachability of a host by sending ICMP echo requests?", "ping", ["tracert", "nslookup", "chkdsk"], "ping confirms basic connectivity and round-trip time.", 1),
+    Q("Which command queries DNS to resolve a name or find records?", "nslookup", ["ping", "ipconfig", "netstat"], "nslookup troubleshoots name resolution against DNS servers.", 1),
+    Q("Which Linux command lists the contents of a directory?", "ls", ["cd", "pwd", "rm"], "ls lists files; cd changes directory; pwd prints the working directory.", 1),
+    Q("Which Linux command changes file permissions?", "chmod", ["chown", "grep", "ps"], "chmod sets read/write/execute bits; chown changes ownership.", 1),
+    Q("Which Linux command runs a single command with elevated (root) privileges?", "sudo", ["su -", "runas", "elevate"], "sudo grants temporary root for one command with logging.", 1),
+    Q("Which macOS tool backs up the system to an external drive automatically?", "Time Machine", ["Boot Camp", "Spotlight", "Mission Control"], "Time Machine performs versioned backups to an attached disk.", 1),
+    Q("Which macOS feature searches the system quickly from the menu bar?", "Spotlight", ["Finder sidebar", "Keychain", "Dock"], "Spotlight indexes and finds files, apps and settings.", 1),
+    Q("A user needs to run a full Windows installation on a Mac. Which Apple tool enables this?", "Boot Camp", ["Time Machine", "FileVault", "Gatekeeper"], "Boot Camp sets up a native Windows partition on Intel Macs.", 1),
+    Q("Which macOS feature provides full-disk encryption?", "FileVault", ["BitLocker", "EFS", "Gatekeeper"], "FileVault encrypts the Mac's disk; BitLocker is the Windows equivalent.", 1),
+    Q("Which Windows feature encrypts an entire drive and can use the TPM?", "BitLocker", ["EFS", "FileVault", "Defender"], "BitLocker provides full-volume encryption tied to the TPM.", 1),
+    Q("Which Windows feature encrypts individual files/folders for a specific user?", "EFS (Encrypting File System)", ["BitLocker", "FileVault", "NTFS compression"], "EFS encrypts selected files per user; BitLocker encrypts the whole volume.", 1),
+    Q("A clean install is needed but the user's files must be kept. Which upgrade path keeps apps and files?", "An in-place upgrade", ["A clean install with format", "A repair that wipes data", "A factory reset"], "An in-place upgrade preserves apps, settings and files where supported.", 1),
+    Q("Which boot method lets a technician run diagnostics from external media without the installed OS?", "Booting to USB/optical installation or recovery media", ["Safe Mode with the SSD only", "Fast Startup", "Hibernate"], "External boot media runs independent repair tools.", 1),
+    Q("Which Windows startup mode loads a minimal driver set to troubleshoot problems?", "Safe Mode", ["Fast Startup", "Hibernate", "Secure Boot"], "Safe Mode loads only essential drivers to isolate faults.", 1),
+    Q("Which partition style is required to boot a drive larger than 2 TB with UEFI?", "GPT", ["MBR", "FAT", "Dynamic MBR"], "GPT supports large disks and pairs with UEFI; MBR is limited to 2 TB.", 1),
+    Q("A technician must schedule a script to run nightly on Windows. Which tool?", "Task Scheduler", ["Event Viewer", "Disk Management", "Performance Monitor"], "Task Scheduler runs programs/scripts on triggers or schedules.", 1),
+    Q("Which tool creates, shrinks, extends and formats partitions in Windows via a GUI?", "Disk Management", ["Task Manager", "Device Manager", "msconfig"], "Disk Management handles volumes and drive letters graphically.", 1),
+    Q("Which console centralizes Windows logs for troubleshooting crashes and service failures?", "Event Viewer", ["Resource Monitor", "Registry Editor", "Credential Manager"], "Event Viewer records system, application and security events.", 1),
+    Q("A user wants apps and files identical across devices when signed in. What enables this on Windows?", "A Microsoft account with sync", ["A local account only", "Safe Mode", "A guest account"], "A Microsoft account syncs settings and OneDrive files across devices.", 1),
+    Q("Which command forcibly refreshes Group Policy on a domain workstation?", "gpupdate /force", ["gpresult", "sfc /scannow", "net user"], "gpupdate /force reapplies policy immediately; gpresult reports applied policy.", 1),
+    Q("Which Windows tool shows startup programs and services to control boot behavior (now largely in Task Manager)?", "msconfig (System Configuration)", ["regedit", "cmd", "explorer"], "msconfig manages boot options and services; startup apps moved to Task Manager.", 1),
+    Q("A technician must copy a large folder tree with resume and logging. Which command is best?", "robocopy", ["copy", "xcopy /q", "move"], "robocopy is robust for large mirrors with retries and logging.", 1),
+    Q("Which Linux command shows running processes?", "ps (or top)", ["ls", "cd", "cat"], "ps lists processes; top shows them live with resource use.", 1),
+    Q("Which Windows account type should a standard user have to follow least privilege?", "Standard user (not administrator)", ["Administrator", "Domain admin", "SYSTEM"], "Least privilege means day-to-day work under a standard account.", 1),
+    Q("A laptop must get a feature update but is low on disk space. Which built-in tool frees space safely?", "Disk Cleanup (or Storage Sense)", ["diskpart clean", "format", "chkdsk /r"], "Disk Cleanup removes temp files and old updates without harming data.", 1),
+    Q("Which mobile/desktop concept isolates each app's data from others for security?", "Sandboxing", ["Rooting", "Jailbreaking", "Tethering"], "Sandboxing confines an app so it cannot freely access others' data.", 1),
+    Q("A Windows PC shows 'Operating System not found' at boot. Which is a likely cause?", "Boot order/missing boot files or a failed drive", ["A bad monitor cable", "A dead mouse", "A full recycle bin"], "Check boot order, the drive's health and repair the bootloader.", 1),
+    Q("Which tool repairs the Windows bootloader from recovery?", "bootrec (/fixmbr, /fixboot, /rebuildbcd)", ["sfc only", "ipconfig", "chkdsk /r only"], "bootrec rebuilds boot records from the recovery environment.", 1)
+  ] });
+})();
