@@ -11,6 +11,14 @@
 "2.5": "router;switch;managed;unmanaged;access point;patch panel;firewall;Power over Ethernet;injector;PoE switch;802.3af;802.3at;802.3bt;cable modem;DSL;ONT;NIC;physical MAC address",
 "2.6": "IPv4;private;public;IPv6;APIPA;static;dynamic;subnet mask;gateway",
 "2.7": "satellite;fiber;cable;DSL;cellular;WISP;LAN;WAN;PAN;MAN;SAN;WLAN",
-"2.8": "crimper;cable stripper;Wi-Fi analyzer;toner probe;punchdown tool;cable tester;loopback plug;network tap"
+"2.8": "crimper;cable stripper;Wi-Fi analyzer;toner probe;punchdown tool;cable tester;loopback plug;network tap",
+"3.1": "LCD;IPS;TN;VA;OLED;mini-LED;touch screen;digitizer;inverter;pixel density;refresh rate;resolution;color gamut",
+"3.2": "Cat 5;Cat 5e;Cat 6;Cat 6a;coaxial;shielded twisted pair;direct burial;plenum;T568A;T568B;single-mode;multimode;USB 2.0;USB 3.0;serial;Thunderbolt;HDMI;DisplayPort;DVI;VGA;USB-C;SATA;eSATA;adapter;RJ11;RJ45;F type;ST;SC;LC;punchdown block;microUSB;miniUSB;Molex;Lightning;DB9",
+"3.3": "SODIMM;DIMM;DDR;ECC;non-ECC;channel",
+"3.4": "spindle speed;2.5-inch;3.5-inch;NVMe;SATA;PCIe;SAS;M.2;mSATA;RAID 0;RAID 1;RAID 5;RAID 6;RAID 10;flash drive;memory card;optical drive",
+"3.5": "ATX;microATX;ITX;PCI;PCIe;power connector;SATA;eSATA;header;M.2;CPU socket;AMD;Intel;multisocket;boot options;USB permissions;Trusted Platform Module;fan considerations;Secure Boot;boot password;BIOS password;temperature monitoring;virtualization support;TPM;HSM;x86;x64;ARM;core;sound card;video card;capture card;NIC;fans;heat sink;thermal paste;liquid",
+"3.6": "110-120 VAC;220-240 VAC;3.3 V;5 V;12 V;20+4-pin;redundant power supply;modular power supply;wattage rating;energy efficiency",
+"3.7": "unbox;setup location;drivers;PCL;PostScript;firmware;USB;Ethernet;wireless;printer share;print server;duplex;orientation;tray settings;quality;user authentication;badging;audit logs;secured prints;email;SMB;cloud services;ADF;flatbed",
+"3.8": "laser;toner;maintenance kit;calibrate;clean;imaging process;inkjet;ink cartridge;printhead;roller;feeder;clear jams;thermal;feed assembly;special thermal paper;heating element;remove debris;impact;multipart paper;ribbon"
 }
 }
