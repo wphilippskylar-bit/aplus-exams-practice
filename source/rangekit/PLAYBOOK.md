@@ -55,16 +55,16 @@ Honesty rules for the grader:
 - Auto-sorted question banks cap assessment at 18 until someone reviews them objective by objective.
 - If the official objective numbering was read from a PDF, cross-check it against a second source (Professor Messer's course-notes index). PDF text extraction scrambled the numbering for both Net+ Domain 3 and A+ Core 1 Domain 3.
 
-## 2b. Report card (16 Nov 2026)
+## 2b. Report card (updated 17 Nov 2026)
 
 | Console | Coverage | Depth | Hands-on | Structure | Assessment | **Now** | What moves it up |
 |---|---|---|---|---|---|---|---|
 | Net+ Range (N10-009) | 19 | 17 | 18 | 19 | 17 | **90** | Hand-review the keyword-sorted question bank per objective; multi-step tickets for 3.4 and 5.4 |
 | A+ Range — Core 2 Domain 1 (rebuilt) | 19 | 17 | 18 | 19 | 17 | **90** | Hand-review the auto-sorted question bank (caps assessment at 18) |
-| A+ Range — Core 2 Domain 4 (rebuilt) | 19 | 17 | 17 | 19 | 17 | **89** | Hands-on capped at 17: 4.1–4.4 are scenario objectives with pick/order labs only — add one multi-step ticket lab (e.g. a ticketing-system or backup-restore simulation) |
+| A+ Range — Core 2 Domain 4 (rebuilt) | 19 | 17 | 18 | 19 | 17 | **90** | 17 Nov: terminal tickets added for 4.1 (asset inventory), 4.2 (change + rollback with restore points), 4.3 (robocopy/wbadmin backup + restore test). 4.4 safety stays pick/order (no commands) |
 | A+ Range — Core 2 Domain 2 (rebuilt) | 19 | 17 | 18 | 19 | 17 | **90** | 2.10 has no terminal ticket (router config sim would lift it); hand-review the sorted bank |
 | A+ Range — Core 2 Domain 3 (rebuilt) | 19 | 17 | 18 | 19 | 17 | **90** | 3.2 is pick-labs only (mobile); 3.3 has 15 questions (minimum) — add 3–5 more scenario questions |
-| A+ Range — Core 1 (5 domains) | 12 | 6 | 5 | 6 | 15 | **44** | Rebuild (queue below) |
+| A+ Range — Core 1, all 5 domains (rebuilt 17 Nov) | 19 | 17 | 18 | 19 | 17 | **90** | 3.6 PSU and 3.8 printer maintenance have calc/order labs, not command tickets (nothing to type for them); hand-review the keyword-sorted old bank |
 | Security+ Range (SY0-701) | 16 | 9 | 8 | 12 | 18 | **63** | Parts, callouts, paired labs on all 28 objectives |
 | Cloud Range (15 cert tracks) | 10 | 10 | 10 | 9 | 12 | **51** | One ladder rebuilt by official domain → objective |
 | Code Range (11 skill tracks) | 16 | 14 | 18 | 10 | 12 | **70** | Part format; Windows and Remote Access tracks |
@@ -89,11 +89,11 @@ Each item is one sitting. Finish, run the checker, push, tick it off here.
 - [x] Core 2 Domain 4 — Operational Procedures (4.1–4.10), 17 Nov: 25 parts, 6 terminal labs (PowerShell script, bash script review, RDP, SSH keys, WinRM, domain shift), 437/437 bullets. **4.8 scripting and 4.9 remote access get terminal labs** (ssh, mstsc, Enter-PSSession, winrm). Wrap lab id `c2-d4-wrap`.
 - [x] Core 2 Domain 2 — Security (2.1–2.11), 17 Nov: 30 parts, 9 terminal labs incl. **Active Directory in PowerShell** (join, OU move, groups, home folder, gpresult), Defender/firewall, NTFS icacls, BitLocker, hardening, malware removal, hash check; 671/671 bullets. **2.2 covers Active Directory** (domain join, OUs, home folders, GPO, security groups, folder redirection): scenario labs + PowerShell terminal lab. Wrap lab `c2-d2-wrap`.
 - [x] Core 2 Domain 3 — Software Troubleshooting (3.1–3.4), 17 Nov: 10 parts, 5 terminal labs (WinRE bootrec/sfc offline, performance + DISM/sfc, services + w32tm, hosts/proxy/flushdns redirect fix, **adb clean-up of a spoofed Android app**) + domain shift `c2-d3-wrap`; 722/722 Core 2 bullets. **Core 2 complete.**
-- [ ] Core 1 Domain 1 — Mobile Devices (1.1–1.3). Wrap lab `c1-d1-wrap`.
-- [ ] Core 1 Domain 2 — Networking (2.1–2.8). Reuse ideas (not text) from Net+ Range. Wrap lab `c1-d2-wrap`.
-- [ ] Core 1 Domain 3 — Hardware (3.1–3.8). Wrap lab `c1-d3-wrap`.
-- [ ] Core 1 Domain 4 — Virtualization & Cloud (4.1–4.2). Wrap lab `c1-d4-wrap`.
-- [ ] Core 1 Domain 5 — Troubleshooting (5.1–5.6). Wrap lab `c1-d5-wrap`.
+- [x] Core 1 Domain 1 — Mobile Devices (1.1–1.3), 17 Nov: battery report, laptop RAM/SSD upgrade, phone-hotspot netsh, adb MDM/data-saver labs.
+- [x] Core 1 Domain 2 — Networking (2.1–2.8), 17 Nov: listening ports, Wi-Fi band/channel, DNS mail records (SPF/DKIM/DMARC), ARP/MAC, APIPA/DHCP/static labs; T568B order lab.
+- [x] Core 1 Domain 3 — Hardware (3.1–3.8), 17 Nov. Numbering confirmed against the official list (3.1 displays … 3.8 printer maintenance). Labs: refresh rate/cable, RAM channels/ECC, disks/SMART, RAID and PSU calculators, TPM/Secure Boot/VT-x, print-server deployment, laser imaging order.
+- [x] Core 1 Domain 4 — Virtualization & Cloud (4.1–4.2), 17 Nov: Hyper-V sandbox, Docker container, cloud bill calculator.
+- [x] Core 1 Domain 5 — Troubleshooting (5.1–5.6), 17 Nov: every objective has a multi-step ticket (event IDs/temps/CMOS, degraded array + offline disk, projector path, adb phone, pathping/jitter + switch port flapping, frozen print queue). **A+ complete: 36 Core 2 + 27 Core 1 objectives, 438/438 Core 1 and 722/722 Core 2 bullets.**
 
 **Code Range** (`code-range`) — see section 6 for what exists.
 - [ ] **New track: Remote Access & Support** (track id `remote`, `unit: 'Module'`, added with `trackDef`/`tierDef` in `RK.build`). All terminal labs.
@@ -135,7 +135,7 @@ cd .. && git add -A && git commit -m "…" && git push
 - The checker prints a `scorecard inputs` line — paste it with your grade.
 - An objective can list extra labs with `moreLabs: ['id']` (shown in its Labs tab, not paired to a part).
 - `rk-check.js` also types every terminal lab's own answers and fails if any lab does not complete.
-- `node rangekit/rk-coverage.js dist/index.html objectives/core2-bullets.json` is the coverage audit. Add each new domain's official bullets to that JSON (one `;`-separated line per objective) **before** writing the content, and write until it reports every bullet found.
+- `node rangekit/rk-coverage.js dist/index.html objectives/core2-bullets.json` (and `objectives/core1-bullets.json`) is the coverage audit. Write the JSON with `ensure_ascii=False` or the en-dash terms will not match. Add each new domain's official bullets to that JSON (one `;`-separated line per objective) **before** writing the content, and write until it reports every bullet found.
 - The checker fails on: page errors, a learn part over 5 min, part + lab over 15 min, a part without a quick check or objective line, an objective with under 12 test questions (add `RK.extra`), a wrap with under 4 recap lines, match answers missing from their options, a terminal `show` command its own `accept` rejects, or a broken flip/lab/test flow.
 - Progress: if the learner had passed the old domain stage, the new objectives start passed ("carried over"). Nothing to do.
 

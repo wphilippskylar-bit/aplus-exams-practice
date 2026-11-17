@@ -248,7 +248,7 @@ html,body{overflow-x:hidden}
 <body>
 <noscript>This study app needs JavaScript enabled.</noscript>
 <script>
-/* build ce1714f798 */
+/* build 31630c0f4a */
 /* A+ Range — course definition (meta). Stages are appended by the a*.js (Core 1) and b*.js (Core 2) files. */
 window.Q = function (q, right, wrong, e, d) { return [q, [right].concat(wrong), 0, e, d]; };
 window.TYPE = function (q, accept, e, d, ph) { return { q: q, input: true, accept: accept, show: typeof accept[0] === 'string' ? accept[0] : undefined, e: e, d: d, ph: ph }; };
@@ -3485,6 +3485,395 @@ window.X = {
   ]);
   RK.cards(TR, '4.1', [['Type 1 vs Type 2', 'Bare metal vs hosted on an OS.'], ['Container', 'App + libraries; shares host kernel.'], ['VDI', 'Hosted desktops from any device.'], ['Sandbox', 'Isolated VM; roll back with a checkpoint.']]);
   RK.cards(TR, '4.2', [['IaaS / PaaS / SaaS', 'You manage OS / code / nothing but use.'], ['Hybrid cloud', 'On-premises + public.'], ['Egress', 'Data out — usually charged.'], ['Elasticity', 'Automatic scale up and down.']]);
+})();
+
+;
+/* A+ Core 1 (220-1201) — Domain 5.0 Hardware and Network Troubleshooting — objectives 5.1 to 5.3 */
+(function () {
+  var RK = window.RK, P = RK.P, M = RK.M, O = RK.O, T = RK.T, TR = 'core1';
+  function pro(t) { return '<div class="callout pro"><b class="k">On the job</b>' + t + '</div>'; }
+  function trap(t) { return '<div class="callout trap"><b class="k">Exam trap</b>' + t + '</div>'; }
+
+  // ===================== 5.1 Motherboards, RAM, CPU, power =====================
+  T('c1-hwts', 'Random shutdowns and crashes', 'Read the hardware evidence in Windows',
+    'Ticket: a desktop shuts off without warning a few times a day, apps crash, and the clock is wrong after every weekend. Elevated PowerShell.',
+    { shell: 'ps', prompt: 'PS C:\\Windows\\system32>' },
+    [{ t: 'Find the unexpected-shutdown events (Kernel-Power ID 41) in the System log.', accept: [/^get-winevent -filterhashtable @\{ ?logname ?= ?['"]?system['"]?; ?id ?= ?41 ?\}( -maxevents \d+)?$/i, /^get-eventlog -logname system -instanceid 41( -newest \d+)?$/i], show: "Get-WinEvent -FilterHashtable @{LogName='System'; Id=41} -MaxEvents 5", hint: "Get-WinEvent -FilterHashtable @{LogName='System'; Id=41}", out: 'TimeCreated           Id LevelDisplayName Message\n-----------           -- ---------------- -------\n11/17/2026 2:41:07 PM 41 Critical         The system has rebooted without cleanly shutting down first…\n11/17/2026 11:02:55 AM 41 Critical        The system has rebooted without cleanly shutting down first…', why: 'Confirms power is being lost abruptly — not a user or update restart.' },
+     { t: 'Look for hardware error reports from the WHEA logger.', accept: [/^get-winevent -filterhashtable @\{ ?logname ?= ?['"]?system['"]?; ?providername ?= ?['"]?microsoft-windows-whea-logger['"]? ?\}( -maxevents \d+)?$/i, /^get-winevent -providername microsoft-windows-whea-logger( -maxevents \d+)?$/i], show: 'Get-WinEvent -ProviderName Microsoft-Windows-WHEA-Logger -MaxEvents 5', hint: 'Get-WinEvent -ProviderName Microsoft-Windows-WHEA-Logger', out: 'TimeCreated            Id Message\n-----------            -- -------\n11/17/2026 2:40:51 PM  19 A corrected hardware error has occurred. Component: Processor Core. Error Source: Machine Check Exception', why: 'WHEA = Windows Hardware Error Architecture: real hardware complaints, here from the CPU just before the shutdown.' },
+     { t: 'Read the CPU temperature sensor (thermal zone, in tenths of Kelvin).', accept: [/^get-ciminstance -namespace root[\\/]wmi (-classname )?msacpi_thermalzonetemperature( \| select(-object)? .+)?$/i], show: 'Get-CimInstance -Namespace root/wmi MSAcpi_ThermalZoneTemperature | Select-Object CurrentTemperature', hint: 'Get-CimInstance -Namespace root/wmi MSAcpi_ThermalZoneTemperature', out: 'CurrentTemperature\n------------------\n              3732', ask: { q: '3732 tenths of Kelvin ≈ 373 K. Roughly what is that in °C? (number)', accept: ['100', '99', '100c'], why: '373 K − 273 = ~100 °C: the CPU is hitting its thermal limit and the board cuts power. Overheating → clean dust, check the fan, reapply thermal paste.' }, why: 'Overheating causes random shutdowns, crashes and sluggishness.' },
+     { t: 'The clock problem: check what time source Windows is using.', accept: [/^w32tm \/query \/status$/i], show: 'w32tm /query /status', hint: 'w32tm /query /status', out: 'Source: Local CMOS Clock\nLast Successful Sync Time: unspecified', why: 'Inaccurate system date/time after every power-off = weak CMOS battery. Replace the coin cell (CR2032), then re-enter UEFI settings.' },
+     { t: 'After cleaning the cooler and replacing the CMOS battery, schedule a memory test to rule out RAM.', accept: [/^mdsched(\.exe)?$/i], show: 'mdsched.exe', hint: 'Windows Memory Diagnostic', out: 'Windows Memory Diagnostic: Restart now and check for problems (recommended)', why: 'Rules out RAM as a cause of the app crashes. Document: dust/thermal, CMOS battery, memory test result.' }],
+    'Evidence first: event IDs (41, WHEA), temperatures, time source, memory test. Then the physical fix: clean/cool, replace CMOS battery, reseat or replace RAM, test the PSU.',
+    ['Kernel-Power 41, WHEA-Logger, MSAcpi_ThermalZoneTemperature, w32tm, mdsched.']);
+  M('c1-boardsym', 'Symptom → likely cause', 'Motherboard, RAM, CPU and power symptoms',
+    'Pick the most likely cause.', ['RAM (reseat/test)', 'Overheating', 'Power supply', 'Motherboard capacitors', 'CMOS battery', 'Video/GPU or display path', 'Failing fan/bearing', 'Short circuit or burning component'],
+    [['Beep pattern at power-on and nothing on screen; the manual says the code means memory', 'RAM (reseat/test)', 'POST beeps.'], ['PC runs fine for 20 minutes then shuts off; fans are full of dust', 'Overheating', 'Thermal shutdown.'], ['Completely dead: no fans, no lights, wall outlet tested good', 'Power supply', 'No power.'], ['Bulging tops on capacitors near the CPU socket', 'Motherboard capacitors', 'Capacitor swelling.'], ['Date resets to 2010 every time the PC is unplugged', 'CMOS battery', 'Inaccurate date/time.'], ['Fans spin and lights are on, but the screen stays blank', 'Video/GPU or display path', 'Blank screen.'], ['Loud grinding/whirring noise that changes with fan speed', 'Failing fan/bearing', 'Unusual noise.'], ['Burning smell and the PC will not turn on again', 'Short circuit or burning component', 'Unplug immediately.']],
+    'Symptom → most likely component → test → replace. Unplug at once for any burning smell.');
+  O('c1-noboot-order', 'No POST: isolate the fault', 'Combined 5.1',
+    'A desktop powers on (fans spin) but does not POST. Put the isolation steps in order.',
+    [['Confirm the monitor, cable and input source with a known-good setup', 'Rule out the display first.'], ['Listen for POST beeps / read the motherboard LED or debug code', 'Let the board tell you.'], ['Disconnect all non-essential devices and cards', 'Minimal configuration.'], ['Reseat RAM; try one stick at a time in the primary slot', 'RAM is the most common cause.'], ['Reseat the CPU power (8-pin) and 24-pin connectors; test the PSU with a tester', 'Power path.'], ['Clear CMOS and try again', 'Bad settings or failed overclock.'], ['Swap in known-good parts (PSU, RAM, CPU) until the faulty one is found', 'Last resort: substitution.']],
+    'Display → codes → minimal config → RAM → power → CMOS → substitution.');
+
+  RK.add({ track: TR, id: '5.1', dom: 5, short: 'Motherboard, RAM, CPU & power', title: 'Given a scenario, troubleshoot motherboards, RAM, CPUs, and power',
+    goal: 'Diagnose POST beeps, crash screens, blank screens, no power, sluggishness, overheating, burning smells, random shutdowns, crashes, noises, swollen capacitors and wrong system time.',
+    kw: /\b(post|beep|blue screen|pinwheel|crash screen|kernel panic|blank screen|no power|sluggish|overheat|burning smell|random (shutdown|reboot)|application crash|grinding|noise|capacitor|swollen|cmos|date\/?time|clock)/,
+    parts: [
+      P('Power, POST and blank screens', 'Troubleshoot POST beeps, proprietary crash screens, blank screens, no power and burning smells.',
+        `<table><tr><th>Symptom</th><th>Likely cause</th><th>What to do</th></tr>
+<tr><td><b>POST beeps</b> / LED codes</td><td>RAM, CPU, video, board</td><td>Look up the code in the board manual; reseat RAM first.</td></tr>
+<tr><td><b>Proprietary crash screens</b> (Windows BSOD, macOS kernel panic, Linux kernel panic)</td><td>Driver, RAM, overheating, failing hardware</td><td>Record the stop code; check logs; test RAM; update/roll back drivers.</td></tr>
+<tr><td><b>Blank screen</b> with fans running</td><td>Display/cable/input, GPU, RAM, no POST</td><td>Check the monitor path, then minimal configuration.</td></tr>
+<tr><td><b>No power</b></td><td>Outlet, power strip, PSU switch, PSU, front-panel header</td><td>Test the outlet, PSU tester, check the 24-pin and front-panel connections.</td></tr>
+<tr><td><b>Burning smell</b></td><td>Failing PSU, shorted component</td><td>Unplug immediately; inspect; replace the part.</td></tr>
+<tr><td><b>Capacitor swelling</b></td><td>Failing capacitors on board or PSU</td><td>Replace the board or PSU.</td></tr></table>` + pro('Build a "minimal configuration" habit: board, CPU, one RAM stick, PSU, onboard video. If it POSTs, add parts back one at a time.') + trap('Fans spinning does not mean the system POSTed. A blank screen with spinning fans is usually RAM, CPU power, GPU or the display path.'),
+        [['A PC gives a repeating beep code and no video. First step?', 'Look up the code and reseat the RAM', ['Reinstall Windows', 'Replace the monitor', 'Run sfc'], 'POST code.'],
+         ['You smell burning from a PC. What should you do first?', 'Unplug it immediately', ['Run diagnostics', 'Update drivers', 'Open the PSU'], 'Safety.']],
+        'c1-boardsym'),
+      P('Performance, heat, noise and time', 'Troubleshoot sluggish performance, overheating, random shutdowns, application crashes, unusual noises and inaccurate system date/time.',
+        `<table><tr><th>Symptom</th><th>Likely cause</th><th>What to do</th></tr>
+<tr><td><b>Sluggish performance</b></td><td>Thermal throttling, too little RAM, failing drive</td><td>Check temps, Task Manager, drive health.</td></tr>
+<tr><td><b>Overheating</b></td><td>Dust, failed fan, dried thermal paste, blocked vents</td><td>Clean with compressed air, replace fan, re-paste.</td></tr>
+<tr><td><b>Random shutdown</b></td><td>Overheating, failing PSU, loose power</td><td>Event ID 41, temperatures, PSU test.</td></tr>
+<tr><td><b>Application crashes</b></td><td>Bad RAM, overheating, software</td><td>Memory diagnostic, temps, logs.</td></tr>
+<tr><td><b>Unusual noise</b></td><td>Fan bearing (grinding), coil whine, failing HDD (clicking)</td><td>Locate and replace the part.</td></tr>
+<tr><td><b>Inaccurate system date/time</b></td><td>Dead CMOS battery</td><td>Replace the coin cell; resync time.</td></tr></table>
+<p>Windows evidence: Event Viewer (Kernel-Power 41, WHEA-Logger hardware errors), Reliability Monitor, Windows Memory Diagnostic (<code>mdsched</code>), vendor diagnostics.</p>` + pro('Clean dust outdoors or with an ESD-safe vacuum, and hold fans still while blowing compressed air — spinning them fast can generate current and damage bearings.') + trap('A clock that resets only after the PC is unplugged is the CMOS battery, not Windows time sync.'),
+        [['A PC shuts down under load and its CPU reads 100 °C. Fix?', 'Clean dust, check the fan and reapply thermal paste', ['Add RAM', 'Replace the CMOS battery', 'Reinstall the OS'], 'Overheating.'],
+         ['Which Event ID shows Windows rebooted without a clean shutdown?', '41', ['4624', '7036', '1000'], 'Kernel-Power.']],
+        'c1-hwts')
+    ],
+    wrap: { recap: ['POST beeps/LED codes → manual; reseat RAM first.', 'Crash screens (BSOD, kernel panic): stop code, drivers, RAM, heat.', 'Blank screen with fans: display path, then minimal configuration.', 'No power: outlet, PSU, 24-pin, front-panel header. Burning smell: unplug.', 'Overheating → dust, fan, paste; random shutdowns → heat or PSU (Event 41).', 'Swollen capacitors → replace board/PSU; wrong date/time → CMOS battery.'], lab: 'c1-noboot-order' }
+  });
+
+  // ===================== 5.2 Drives & RAID =====================
+  T('c1-drivets', 'Missing drive and a degraded array', 'Storage troubleshooting in PowerShell',
+    'Ticket: a file server\'s data volume is slow, a second disk vanished from File Explorer after a reboot, and the server beeped overnight. Elevated PowerShell.',
+    { shell: 'ps', prompt: 'PS C:\\Windows\\system32>' },
+    [{ t: 'Check the health of every physical disk.', accept: [/^get-physicaldisk( \| select(-object)? .+| \| (ft|format-table) .+)?$/i], show: 'Get-PhysicalDisk | Select-Object FriendlyName,HealthStatus,OperationalStatus,Size', hint: 'Get-PhysicalDisk', out: 'FriendlyName  HealthStatus OperationalStatus Size\n------------  ------------ ----------------- ----\nDISK-A        Healthy      OK                4 TB\nDISK-B        Warning      Predictive Failure 4 TB\nDISK-C        Healthy      OK                4 TB\nDISK-D        Healthy      OK                4 TB\nDISK-E        Healthy      OK                2 TB', ask: { q: 'Which disk is reporting a S.M.A.R.T. predictive failure?', accept: ['disk-b'], why: 'S.M.A.R.T. predicts failure before it happens: extended read/write times and low IOPS are early signs. Replace it while the data is still readable.' }, why: 'S.M.A.R.T. failure.' },
+     { t: 'Check the storage pool\'s virtual disk (the RAID-style array).', accept: [/^get-virtualdisk( \| select(-object)? .+)?$/i], show: 'Get-VirtualDisk | Select-Object FriendlyName,ResiliencySettingName,HealthStatus,OperationalStatus', hint: 'Get-VirtualDisk', out: 'FriendlyName ResiliencySettingName HealthStatus OperationalStatus\n------------ --------------------- ------------ -----------------\nData         Parity                Warning      Degraded', ask: { q: 'What is the array\'s operational status?', accept: ['degraded'], why: 'Degraded parity array (like RAID 5): still working but one more failure loses data. That explains the slowness and the audible alarm.' }, why: 'RAID failure / degraded array.' },
+     { t: 'After hot-swapping DISK-B for a new disk (already added to the pool), rebuild the array.', accept: [/^repair-virtualdisk( -friendlyname)? "?data"?( -asjob)?$/i], show: 'Repair-VirtualDisk -FriendlyName "Data"', hint: 'Repair-VirtualDisk -FriendlyName …', out: 'Repair started. Use Get-StorageJob to monitor progress.', why: 'Rebuild onto the new disk. Back up first if you can — a rebuild stresses the remaining disks.' },
+     { t: 'Now the missing drive: list the disks Windows sees, including offline ones.', accept: [/^get-disk( \| select(-object)? .+| \| (ft|format-table) .+)?$/i], show: 'Get-Disk | Select-Object Number,FriendlyName,OperationalStatus,PartitionStyle', hint: 'Get-Disk', out: 'Number FriendlyName OperationalStatus PartitionStyle\n------ ------------ ----------------- --------------\n     0 OS-NVMe      Online            GPT\n     5 DISK-E       Offline           GPT', ask: { q: 'Which disk number is offline?', accept: ['5'], why: 'The disk is detected by the hardware but offline in Windows (often after a SAN policy or signature conflict) — so it is "missing in the OS".' }, why: 'Missing drives in the OS.' },
+     { t: 'Bring disk 5 online.', accept: [/^set-disk( -number)? 5 -isoffline \$false$/i], show: 'Set-Disk -Number 5 -IsOffline $false', hint: 'Set-Disk -Number 5 -IsOffline $false', out: '', why: 'The volume reappears with its drive letter. If a disk is not listed at all: check cables, power, controller/BIOS detection.' },
+     { t: 'Scan the returned volume (E:) for file-system errors without fixing yet.', accept: [/^chkdsk e:$/i, /^repair-volume -driveletter e -scan$/i], show: 'chkdsk E:', hint: 'chkdsk <drive>: (read-only scan)', out: 'Windows has scanned the file system and found no problems.\nNo further action is required.', why: 'Data corruption ruled out. Document the replaced disk serial and the rebuild.' }],
+    'Drive tickets: health (S.M.A.R.T.) → array status → replace and rebuild → detection/online state → file-system check. Back up before any rebuild.',
+    ['Get-PhysicalDisk, Get-VirtualDisk, Repair-VirtualDisk, Get-Disk, Set-Disk, chkdsk.']);
+  M('c1-drivesym', 'Drive symptom → action', 'Noises, LEDs, boot, corruption, RAID, performance',
+    'Pick the best action.', ['Back up now and replace the drive', 'Check boot order / drive detection', 'Replace the failed array member and rebuild', 'Check S.M.A.R.T. and drive health', 'Restore from backup and run chkdsk', 'Check controller/RAID configuration', 'Read the LED status indicator'],
+    [['Clicking sounds from a hard drive', 'Back up now and replace the drive', 'Click of death.'], ['Grinding noise from the drive bay', 'Back up now and replace the drive', 'Mechanical failure.'], ['"Bootable device not found" after a BIOS reset', 'Check boot order / drive detection', 'Boot order or detection.'], ['Server beeps and the RAID utility shows one drive failed', 'Replace the failed array member and rebuild', 'Audible alarm.'], ['Copies take much longer and IOPS are low', 'Check S.M.A.R.T. and drive health', 'Extended read/write times.'], ['Files will not open and some are garbled', 'Restore from backup and run chkdsk', 'Data loss/corruption.'], ['The whole array is missing after a controller swap', 'Check controller/RAID configuration', 'Array missing — import the foreign config.'], ['Drive tray light is amber instead of green', 'Read the LED status indicator', 'LED indicators show failure/rebuild.']],
+    'Noise or S.M.A.R.T. warning = back up first, then replace.');
+  M('c1-drive-wrap', 'Storage help desk', 'Combined 5.2',
+    'Pick the most likely cause.', ['Failing drive (mechanical)', 'Boot order / not detected', 'Degraded array', 'Array missing (controller config)', 'Disk offline in OS', 'File-system corruption', 'Predictive failure (S.M.A.R.T.)'],
+    [['Laptop HDD makes a repeating click and Windows freezes', 'Failing drive (mechanical)', 'Back up and replace.'], ['New SSD installed, PC says "No bootable device"', 'Boot order / not detected', 'Boot order or cable.'], ['RAID 5 still serves files but is slow and the controller beeps', 'Degraded array', 'Replace and rebuild.'], ['New RAID card shows no arrays', 'Array missing (controller config)', 'Import foreign config.'], ['Disk Management shows the disk with a red arrow, "Offline"', 'Disk offline in OS', 'Bring online.'], ['chkdsk reports orphaned files and bad indexes', 'File-system corruption', 'Repair; restore lost data.'], ['Monitoring tool warns reallocated sector count is rising', 'Predictive failure (S.M.A.R.T.)', 'Replace proactively.']],
+    'Physical, logical, array or configuration — classify first, then act.');
+
+  RK.add({ track: TR, id: '5.2', dom: 5, short: 'Drives & RAID', title: 'Given a scenario, troubleshoot drive and RAID issues',
+    goal: 'Diagnose drive LEDs, noises, boot device errors, data corruption, RAID failures, S.M.A.R.T. warnings, slow I/O, missing drives and arrays, and audible alarms.',
+    kw: /\b(clicking|grinding|bootable device|no boot device|data (loss|corruption)|raid (failure|degraded)|degraded|s\.?m\.?a\.?r\.?t|read.?write|iops|missing drive|array missing|audible alarm|led status|chkdsk|drive (failure|noise))/,
+    parts: [
+      P('Drive symptoms', 'Troubleshoot LED indicators, grinding and clicking, bootable device not found, data loss/corruption, S.M.A.R.T. failures, extended read/write times, low IOPS and missing drives.',
+        `<table><tr><th>Symptom</th><th>Likely cause</th><th>Action</th></tr>
+<tr><td><b>LED status indicators</b> amber/red/blinking</td><td>Failed or rebuilding drive</td><td>Read the vendor\'s LED legend; check the RAID utility.</td></tr>
+<tr><td><b>Grinding noises</b> / <b>clicking sounds</b></td><td>Mechanical HDD failure</td><td>Back up immediately; replace.</td></tr>
+<tr><td><b>Bootable device not found</b></td><td>Boot order, loose cable, failed drive, damaged boot records</td><td>Check UEFI detection and order; then repair boot.</td></tr>
+<tr><td><b>Data loss/corruption</b></td><td>Failing drive, power loss, file-system errors</td><td>Restore from backup; chkdsk; check health.</td></tr>
+<tr><td><b>S.M.A.R.T. failure</b></td><td>Drive predicts its own failure</td><td>Back up and replace now.</td></tr>
+<tr><td><b>Extended read/write times</b>, <b>low IOPS</b></td><td>Failing drive, full disk, degraded array, wrong interface mode</td><td>Health check, free space, controller settings.</td></tr>
+<tr><td><b>Missing drives in OS</b></td><td>Offline, uninitialized, no letter, not detected</td><td>Disk Management / Get-Disk; then cables and BIOS.</td></tr></table>` + pro('If a drive is clicking, stop running repair tools on it. Every minute of activity risks the data. Image it or send it to recovery if there is no backup.') + trap('Running chkdsk /r on a mechanically failing drive can make data loss worse — back up first.'),
+        [['A hard drive is making clicking sounds. First action?', 'Back up the data immediately', ['Defragment it', 'Run chkdsk /r for hours', 'Update the BIOS'], 'Imminent failure.'],
+         ['A drive shows in BIOS but not in File Explorer. What should you check?', 'Whether it is offline, uninitialized or missing a drive letter', ['The monitor cable', 'The CMOS battery', 'The printer spooler'], 'Missing drive in OS.']],
+        'c1-drivets'),
+      P('RAID problems', 'Troubleshoot RAID failures, missing arrays and audible alarms.',
+        `<ul><li><b>RAID failure / degraded array</b> — one (or more) members failed. RAID 1/5/6/10 keep working while degraded, but performance drops and further failures can lose the array. Replace the failed drive (hot-swap if supported) and let it <b>rebuild</b>.</li>
+<li><b>Array missing</b> — the controller does not show the array: failed controller, controller replaced (import the "foreign" configuration), or too many drives failed. Never initialize a missing array — that erases it.</li>
+<li><b>Audible alarms</b> — RAID controllers and storage enclosures beep on drive failure or degraded status; silence the alarm only after recording the cause.</li>
+<li><b>RAID 0</b> has no redundancy: one failed drive = the whole array is lost; restore from backup.</li></ul>
+<p>Tools: the controller\'s utility/BIOS, the vendor\'s management software, Windows Storage Spaces (<code>Get-VirtualDisk</code>, <code>Repair-VirtualDisk</code>), Linux <code>mdadm --detail</code>.</p>` + pro('Before a rebuild, take a fresh backup: rebuilds stress the remaining drives, and a second drive often fails during the rebuild on arrays of same-age disks.') + trap('A degraded RAID 5 still serves data — the urgency is that one more failure loses everything, not that it is already down.'),
+        [['A server beeps and a RAID 5 array shows "degraded". What should you do?', 'Back up, replace the failed drive and rebuild', ['Initialize the array', 'Ignore it while it still works', 'Convert to RAID 0'], 'Restore redundancy.'],
+         ['After replacing a RAID controller, the array is missing. What should you do?', 'Import the existing (foreign) configuration', ['Initialize a new array', 'Format all drives', 'Replace all drives'], 'Do not erase.']],
+        'c1-drivesym')
+    ],
+    wrap: { recap: ['LED indicators: read the legend; amber/red = failed or rebuilding.', 'Grinding/clicking = mechanical failure → back up and replace.', 'Bootable device not found: detection, boot order, cables, then boot repair.', 'S.M.A.R.T. failure, extended read/write times, low IOPS → health check, replace.', 'Missing drives in OS: offline/uninitialized/no letter → Disk Management/Get-Disk.', 'RAID: degraded → replace and rebuild (backup first); array missing → import config, never initialize; audible alarms.'], lab: 'c1-drive-wrap' }
+  });
+
+  // ===================== 5.3 Video, projector, display =====================
+  T('c1-vidts', 'The projector shows nothing', 'Display path from the laptop side',
+    'Ticket: conference room — the projector is on but shows "No signal" from the presenter\'s laptop, and once it works the image is the wrong size and there is no sound. PowerShell on the laptop.',
+    { shell: 'ps', prompt: 'PS C:\\Users\\presenter>' },
+    [{ t: 'Check the display adapter is working.', accept: [/^get-pnpdevice -class display( \| select(-object)? .+)?$/i], show: 'Get-PnpDevice -Class Display', hint: 'Get-PnpDevice -Class Display', out: 'Status Class   FriendlyName\n------ -----   ------------\nOK     Display Intel(R) Iris(R) Xe Graphics', why: 'Driver OK. (The projector\'s input source is set to HDMI 1 to match the cable — incorrect input source is the #1 cause.)' },
+     { t: 'Duplicate the laptop screen onto the projector.', accept: [/^displayswitch(\.exe)? \/clone$/i], show: 'DisplaySwitch.exe /clone', hint: 'DisplaySwitch.exe with /clone (same as Win+P → Duplicate)', out: '', why: 'Projection mode was "PC screen only". Now the projector shows the desktop.' },
+     { t: 'The image is cut off. Check the laptop\'s current output resolution.', accept: [/^get-ciminstance (-classname )?win32_videocontroller( \| select(-object)? .+| \| (fl|format-list).*)?$/i, /^gcim win32_videocontroller.*$/i], show: 'Get-CimInstance Win32_VideoController | Select-Object CurrentHorizontalResolution,CurrentVerticalResolution', hint: 'Win32_VideoController', out: 'CurrentHorizontalResolution CurrentVerticalResolution\n--------------------------- -------------------------\n                       2880                      1800', ask: { q: 'The projector is native 1920×1080. Is the laptop sending its native resolution? (yes/no)', accept: ['no'], why: 'Sizing issue: in Duplicate mode the projector gets a resolution it cannot show cleanly. Set 1920×1080 (or use Extend), and check the projector\'s aspect/zoom setting.' }, why: 'Sizing and fuzzy images come from resolution mismatch.' },
+     { t: 'No sound: list the audio output devices.', accept: [/^get-pnpdevice -class audioendpoint( \| select(-object)? .+)?$/i, /^get-ciminstance (-classname )?win32_sounddevice.*$/i], show: 'Get-PnpDevice -Class AudioEndpoint', hint: 'Get-PnpDevice -Class AudioEndpoint', out: 'Status Class         FriendlyName\n------ -----         ------------\nOK     AudioEndpoint Speakers (Realtek Audio)\nOK     AudioEndpoint EPSON PJ (Intel Display Audio)', ask: { q: 'Which device should be the default output to send sound over HDMI?', accept: ['epson pj', 'epson pj (intel display audio)', 'epson'], why: 'Audio issues: HDMI carries audio, but Windows still plays to the laptop speakers. Set the projector as the default output (and check the projector volume/mute).' }, why: 'Display audio path.' }],
+    'Projector/display ticket: power + input source → cable → projection mode → resolution/aspect → audio device.',
+    ['Get-PnpDevice -Class Display/AudioEndpoint, DisplaySwitch.exe, Win32_VideoController.']);
+  M('c1-dispsym', 'Display symptom → cause', 'Projector and monitor problems',
+    'Pick the most likely cause or fix.', ['Incorrect input source', 'Physical cabling issue', 'Burnt-out bulb', 'Wrong resolution (non-native)', 'Display burn-in', 'Dead pixels', 'Refresh rate / cable / driver', 'Color settings or bad cable pin', 'Brightness / power-saving / backlight', 'Projector overheating (filter/fan)', 'Aspect ratio / scaling', 'Wrong audio output device'],
+    [['Monitor says "No signal" but the PC is on and connected to DisplayPort', 'Incorrect input source', 'Monitor set to HDMI.'], ['Image flickers when the cable is touched', 'Physical cabling issue', 'Loose/damaged cable.'], ['Projector fan runs but no light at all; lamp hours exceeded', 'Burnt-out bulb', 'Replace lamp.'], ['Text looks fuzzy on a new 4K monitor', 'Wrong resolution (non-native)', 'Set native.'], ['Faint taskbar outline is always visible on an OLED', 'Display burn-in', 'Static image damage.'], ['One tiny spot always black on every image', 'Dead pixels', 'Panel defect.'], ['Screen flashes black every few seconds', 'Refresh rate / cable / driver', 'Flashing screen.'], ['Everything has a pink tint', 'Color settings or bad cable pin', 'Incorrect color display.'], ['Laptop screen dim even at max brightness', 'Brightness / power-saving / backlight', 'Dim image.'], ['Projector shuts off after 30 minutes and the vents are clogged', 'Projector overheating (filter/fan)', 'Intermittent shutdown.'], ['Black bars or stretched picture on the projector', 'Aspect ratio / scaling', 'Sizing issue.'], ['Video plays on the TV but sound comes from the laptop', 'Wrong audio output device', 'Audio issues.']],
+    'Input, cable, settings, then hardware (bulb, panel, backlight).');
+  M('c1-disp-ts-wrap', 'Display help desk', 'Combined 5.3',
+    'Pick the best first step.', ['Change the monitor input', 'Reseat or replace the cable', 'Set native resolution', 'Replace the projector lamp', 'Clean the projector filter', 'Update/roll back the display driver', 'Set default audio device', 'Adjust keystone/aspect settings'],
+    [['Monitor blank after a dock was added', 'Change the monitor input', 'Input source.'], ['Green tint appeared after the desk was moved', 'Reseat or replace the cable', 'Damaged pin.'], ['Blurry image on a new monitor', 'Set native resolution', 'Non-native.'], ['Projector lamp warning light, no image', 'Replace the projector lamp', 'Bulb.'], ['Projector turns off mid-meeting, hot to touch', 'Clean the projector filter', 'Overheating.'], ['Flashing screen started after a graphics driver update', 'Update/roll back the display driver', 'Driver.'], ['No sound through HDMI to the TV', 'Set default audio device', 'Audio.'], ['Projected image is a trapezoid', 'Adjust keystone/aspect settings', 'Distorted image.']],
+    'Most display tickets end at input, cable or settings.');
+
+  RK.add({ track: TR, id: '5.3', dom: 5, short: 'Video, projector & display', title: 'Given a scenario, troubleshoot video, projector, and display issues',
+    goal: 'Fix input source, cabling, bulbs, fuzzy or distorted images, burn-in, dead pixels, flashing, color, audio, dim images, projector shutdowns and sizing issues.',
+    kw: /\b(no signal|input source|projector|bulb|lamp|fuzzy|blurry|burn.in|dead pixel|flashing|flicker|incorrect color|tint|dim (image|screen)|keystone|distorted|sizing|aspect|display (issue|problem))/,
+    parts: [
+      P('Signal, cabling and the projection path', 'Troubleshoot incorrect input source, cabling, burnt-out bulbs, intermittent projector shutdown and audio issues.',
+        `<ul><li><b>Incorrect input source</b> — the monitor/projector is set to HDMI 1 while the cable is in HDMI 2 or DisplayPort. Check this first.</li>
+<li><b>Physical cabling issues</b> — loose, damaged or wrong cable; bent pins; adapter that does not support the signal; cable too long.</li>
+<li><b>Projection mode</b> — Win+P (Duplicate, Extend, Second screen only). "No signal" often means "PC screen only".</li>
+<li><b>Burnt-out bulb</b> — projector fan runs but no light; lamp-hours counter over limit; replace the lamp (let it cool; do not touch the glass).</li>
+<li><b>Intermittent projector shutdown</b> — overheating: clogged air filter, blocked vents, failing fan; clean the filter, give it space.</li>
+<li><b>Audio issues</b> — HDMI/DisplayPort carry audio, but the OS must use that device as the default output; check projector/TV volume and mute.</li></ul>` + pro('Keep a known-good HDMI cable and a USB-C adapter in the conference room kit. Half of all "projector is broken" calls are fixed in under a minute with them.') + trap('A projector that powers off by itself is usually overheating (filter/fan), not a failing bulb.'),
+        [['A projector shows "No signal" from a connected, awake laptop. First check?', 'Input source and the laptop projection mode', ['Replace the lamp', 'Reinstall the OS', 'Replace the motherboard'], 'Input + Win+P.'],
+         ['A projector turns itself off after 20 minutes. Likely cause?', 'Overheating from a clogged filter or failing fan', ['Wrong input', 'Dead pixels', 'Wrong audio device'], 'Thermal.']],
+        'c1-vidts'),
+      P('Image quality problems', 'Troubleshoot fuzzy images, burn-in, dead pixels, flashing screens, incorrect color, dim images, sizing issues and distorted images.',
+        `<table><tr><th>Symptom</th><th>Likely cause</th><th>Fix</th></tr>
+<tr><td><b>Fuzzy image</b></td><td>Non-native resolution, projector focus</td><td>Set native resolution; adjust focus.</td></tr>
+<tr><td><b>Display burn-in</b></td><td>Static images on OLED/plasma</td><td>Screen savers, pixel refresh; often permanent.</td></tr>
+<tr><td><b>Dead pixels</b></td><td>Panel defect (always black); stuck pixels (always a color)</td><td>Warranty replacement per vendor pixel policy.</td></tr>
+<tr><td><b>Flashing screen</b></td><td>Cable, refresh rate, driver, failing backlight</td><td>Reseat/replace cable; update or roll back driver.</td></tr>
+<tr><td><b>Incorrect color display</b></td><td>Damaged cable/pin, color profile, monitor settings</td><td>Swap cable; reset color settings/calibrate.</td></tr>
+<tr><td><b>Dim image</b></td><td>Brightness/power settings, failing backlight or lamp</td><td>Check settings; replace backlight/lamp.</td></tr>
+<tr><td><b>Sizing issues</b></td><td>Resolution or aspect mismatch, overscan</td><td>Native resolution, aspect/scaling, TV "just scan".</td></tr>
+<tr><td><b>Distorted image</b></td><td>Projector keystone, bad cable, wrong refresh</td><td>Keystone correction; cable; settings.</td></tr></table>` + pro('Swap one thing at a time — cable, port, monitor — and you will know which part is bad in three tries.') + trap('A pixel that is always black is dead; a pixel stuck on a single bright color is stuck — sometimes fixable with pixel-exercise tools.'),
+        [['A new monitor looks fuzzy. First fix?', 'Set the native resolution', ['Replace the GPU', 'Replace the cable', 'Calibrate colors'], 'Non-native.'],
+         ['A projected image is wider at the top than the bottom. Which setting?', 'Keystone correction', ['Refresh rate', 'Input source', 'Audio device'], 'Distorted image.']],
+        'c1-dispsym')
+    ],
+    wrap: { recap: ['Check input source and projection mode (Win+P) first.', 'Cabling: reseat, swap known-good, check adapters.', 'Projector: burnt-out bulb (no light, lamp hours) vs intermittent shutdown (filter/fan heat).', 'Fuzzy/sizing → native resolution and aspect; distorted → keystone; dim → settings/backlight.', 'Burn-in (static images, OLED) and dead pixels (panel defect) are hardware.', 'Flashing/incorrect color → cable, driver, refresh, color settings; audio → default output device.'], lab: 'c1-disp-ts-wrap' }
+  });
+})();
+
+;
+/* A+ Core 1 (220-1201) — Domain 5.0 Hardware and Network Troubleshooting — 5.4 to 5.6 + domain wrap lab + extras */
+(function () {
+  var RK = window.RK, P = RK.P, M = RK.M, O = RK.O, T = RK.T, TR = 'core1';
+  function pro(t) { return '<div class="callout pro"><b class="k">On the job</b>' + t + '</div>'; }
+  function trap(t) { return '<div class="callout trap"><b class="k">Exam trap</b>' + t + '</div>'; }
+
+  // ===================== 5.4 Mobile device issues =====================
+  T('c1-mobts', 'A hot, slow phone that will not install apps', 'Diagnose an Android phone with adb',
+    'Ticket: a company Android phone gets hot, the battery dies by noon, it is slow, and new apps fail to install. USB debugging is authorized for this ticket. Command Prompt in platform-tools.',
+    { shell: 'cmd', prompt: 'C:\\platform-tools>' },
+    [{ t: 'Read the battery status, health and temperature.', accept: [/^adb shell dumpsys battery$/i], show: 'adb shell dumpsys battery', hint: 'adb shell dumpsys battery', out: 'Current Battery Service state:\n  AC powered: false\n  USB powered: true\n  status: 2\n  health: 2\n  level: 41\n  voltage: 3790\n  temperature: 468', ask: { q: 'Temperature is in tenths of °C. How hot is the battery? (°C, number)', accept: ['46.8', '47', '46'], why: '46.8 °C is hot for a phone at rest — something is working it hard. Health 2 = "good", so the battery itself is not worn or swollen yet.' }, why: 'Overheating + poor battery life symptoms.' },
+     { t: 'Check free space on the data partition.', accept: [/^adb shell df( -h)? \/data$/i], show: 'adb shell df -h /data', hint: 'adb shell df -h /data', out: 'Filesystem      Size  Used Avail Use% Mounted on\n/dev/block/dm-6 110G  109G  0.9G  99% /data', ask: { q: 'What percent of storage is used?', accept: ['99', '99%'], why: 'Unable to install new applications: storage is full. Updates need several GB free; full storage also makes the phone slow.' }, why: 'Storage → install failures and degraded performance.' },
+     { t: 'List third-party apps to look for anything unexpected.', accept: [/^adb shell pm list packages -3$/i], show: 'adb shell pm list packages -3', hint: 'adb shell pm list packages -3', out: 'package:com.microsoft.office.outlook\npackage:com.microsoft.teams\npackage:com.fast.cleaner.boost.pro\npackage:com.whatsapp', ask: { q: 'Which package looks like adware/malware?', accept: ['com.fast.cleaner.boost.pro'], why: '"Cleaner/booster" apps from outside the store commonly run ads and miners in the background — heat, battery drain, data use.' }, why: 'Malware symptom: heat + drain + slowness.' },
+     { t: 'Remove that app.', accept: [/^adb uninstall com\.fast\.cleaner\.boost\.pro$/i], show: 'adb uninstall com.fast.cleaner.boost.pro', hint: 'adb uninstall <package>', out: 'Success', why: 'Removed. Then have the user clear old videos/photos to cloud storage, and update the OS. Check MDM compliance.' }],
+    'Mobile hardware tickets: battery health + temperature, storage, apps (malware), then physical checks (ports, screen, liquid indicators).',
+    ['adb shell dumpsys battery, df -h /data, pm list packages -3, adb uninstall.']);
+  M('c1-mobsym', 'Mobile symptom → cause/fix', 'Battery, screen, charging, connectivity, liquid, digitizer, ports',
+    'Pick the most likely cause or fix.', ['Replace the battery', 'Stop using it — swollen battery', 'Replace the screen/digitizer assembly', 'Check cable, charger and port debris', 'Toggle radios / reset network settings', 'Liquid damage — power off, do not charge', 'Remove case/cover, check for heavy apps', 'Calibrate touch / update OS', 'Replace the damaged port', 'Free up storage', 'Charge or pair the stylus', 'Remove malware / suspicious apps'],
+    [['Phone dies at 40% and battery health reads 68%', 'Replace the battery', 'Poor battery health.'], ['Back cover is bulging and the screen is lifting', 'Stop using it — swollen battery', 'Fire risk.'], ['Cracked glass and touches do nothing in one area', 'Replace the screen/digitizer assembly', 'Broken screen/digitizer.'], ['Charges only when the cable is held at an angle', 'Check cable, charger and port debris', 'Improper charging — lint in port is common.'], ['Wi-Fi and Bluetooth connect poorly after an update', 'Toggle radios / reset network settings', 'Poor/no connectivity.'], ['Phone was dropped in a pool and the liquid indicator is red', 'Liquid damage — power off, do not charge', 'Liquid damage.'], ['Phone hot in a thick case while gaming and charging', 'Remove case/cover, check for heavy apps', 'Overheating.'], ['Cursor drifts and taps land in the wrong spot', 'Calibrate touch / update OS', 'Cursor drift/touch calibration.'], ['USB-C port is physically cracked and loose', 'Replace the damaged port', 'Physically damaged port.'], ['"Not enough space" when installing apps', 'Free up storage', 'Unable to install new applications.'], ['Stylus draws nothing on a tablet', 'Charge or pair the stylus', 'Active stylus needs power/pairing.'], ['Pop-up ads, heat and data use from an unknown "booster" app', 'Remove malware / suspicious apps', 'Malware.']],
+    'Physical (battery, screen, port, liquid) vs software (storage, malware, settings) — classify first.');
+  M('c1-mob-ts-wrap', 'Mobile repair bench', 'Combined 5.4',
+    'Pick the best first action.', ['Power off; do not charge; dry and inspect', 'Replace battery under warranty', 'Clean the charging port', 'Recalibrate / update the OS', 'Delete unused apps and media', 'Remove the malicious app', 'Replace the digitizer'],
+    [['Phone fell in water five minutes ago and is still on', 'Power off; do not charge; dry and inspect', 'Liquid damage.'], ['Year-old phone: battery health 72%', 'Replace battery under warranty', 'Poor battery health.'], ['Charges intermittently; lint visible in the port', 'Clean the charging port', 'Improper charging.'], ['Touches register slightly off after a screen protector was added', 'Recalibrate / update the OS', 'Touch calibration.'], ['Phone lags and updates fail with 200 MB free', 'Delete unused apps and media', 'Storage.'], ['Battery drains and ads appear on the lock screen', 'Remove the malicious app', 'Malware.'], ['Display works but touch is dead in one band', 'Replace the digitizer', 'Digitizer issue.']],
+    'Safety first (swollen battery, liquid), then the cheapest likely fix.');
+
+  RK.add({ track: TR, id: '5.4', dom: 5, short: 'Mobile device issues', title: 'Given a scenario, troubleshoot common mobile device issues',
+    goal: 'Diagnose battery health, swollen batteries, broken screens, charging, connectivity, liquid damage, overheating, digitizer, ports, malware, touch drift, app installs, stylus and performance problems.',
+    kw: /\b(battery health|swollen|broken screen|cracked|charging|liquid|water damage|overheat|digitizer|port damage|charging port|malware|cursor drift|touch calibration|unable to install|stylus|degraded performance|phone (slow|hot))/,
+    parts: [
+      P('Power, heat and performance', 'Troubleshoot poor battery health, swollen batteries, improper charging, overheating, malware, app install failures and degraded performance.',
+        `<table><tr><th>Symptom</th><th>Likely cause</th><th>Fix</th></tr>
+<tr><td><b>Poor battery health</b></td><td>Worn battery (cycles, age, heat)</td><td>Check battery health; replace.</td></tr>
+<tr><td><b>Swollen battery</b></td><td>Failing Li-ion cell</td><td>Stop using, do not charge or puncture; replace; recycle properly.</td></tr>
+<tr><td><b>Improper charging</b></td><td>Cable, charger wattage, lint in port, damaged port, battery</td><td>Swap cable/charger, clean port with a non-metal tool.</td></tr>
+<tr><td><b>Overheating</b></td><td>Heavy apps, charging + gaming, thick case, sun, malware</td><td>Close apps, remove case, cool down, check battery usage.</td></tr>
+<tr><td><b>Malware</b></td><td>Sideloaded or fake apps</td><td>Remove the app, update OS, scan; factory reset if needed.</td></tr>
+<tr><td><b>Unable to install new applications</b></td><td>Storage full, OS too old, MDM policy, account</td><td>Free space, update, check MDM.</td></tr>
+<tr><td><b>Degraded performance</b></td><td>Low storage, background apps, old OS, heat, worn battery throttling</td><td>Restart, free space, update, replace battery.</td></tr></table>` + pro('On phones, a worn battery can make the whole device slow — iOS and Android throttle the CPU to avoid sudden shutdowns. A battery replacement often "fixes" performance.') + trap('Never charge or puncture a swollen battery. "Pressing it back in" is a fire risk.'),
+        [['A phone cannot install apps and shows 99% storage used. Fix?', 'Free up storage', ['Replace the screen', 'Re-pair Bluetooth', 'Calibrate touch'], 'Storage.'],
+         ['A phone only charges with the cable at an angle. First check?', 'Clean lint from the port and try another cable', ['Factory reset', 'Replace the battery immediately', 'Update the OS'], 'Improper charging.']],
+        'c1-mobts'),
+      P('Screens, ports, connectivity and liquid', 'Troubleshoot broken screens, digitizer issues, cursor drift, stylus problems, damaged ports, poor connectivity and liquid damage.',
+        `<ul><li><b>Broken screen</b> — glass, display and digitizer are often one assembly; replace the assembly. Back up first.</li>
+<li><b>Digitizer issues</b> — touches ignored in an area, or "ghost" touches; screen protector, moisture, damage. Replace the digitizer/screen.</li>
+<li><b>Cursor drift/touch calibration</b> — taps land in the wrong place or the pointer wanders (laptop trackpads too): clean the screen, remove a bad protector, update/calibrate, check drivers.</li>
+<li><b>Stylus does not work</b> — active stylus needs charge/pairing; wrong stylus model; passive stylus needs a capacitive tip.</li>
+<li><b>Physically damaged ports</b> — loose, bent, cracked: replace the port (often a daughterboard); use wireless charging meanwhile.</li>
+<li><b>Poor/no connectivity</b> — toggle airplane mode, restart, forget/rejoin Wi-Fi, re-pair Bluetooth, reset network settings, check SIM/eSIM and carrier.</li>
+<li><b>Liquid damage</b> — power off immediately, do not charge, remove case/SIM, dry; check liquid contact indicators; corrosion can appear days later.</li></ul>` + pro('Check the liquid contact indicator (usually in the SIM tray) before quoting a repair — liquid damage typically voids the warranty.') + trap('Rice does not fix a wet phone. Power off, do not charge, and let it dry with airflow — then test.'),
+        [['Touches register in the wrong place but the display looks fine. Which part?', 'Digitizer (touch calibration)', ['Battery', 'SIM card', 'Speaker'], 'Touch layer.'],
+         ['What should you do first with a phone that fell in water?', 'Power it off and do not charge it', ['Charge it to test', 'Put it in rice and charge', 'Run a speed test'], 'Prevent shorts.']],
+        'c1-mobsym')
+    ],
+    wrap: { recap: ['Battery: health %, replace when worn; swollen = stop, do not charge, replace.', 'Improper charging: cable, charger, lint in port, damaged port.', 'Overheating: heavy apps, case, charging; malware → remove app, update, reset if needed.', 'Unable to install apps / degraded performance: storage, OS version, MDM, battery throttling.', 'Broken screen/digitizer, cursor drift, stylus (charge/pair), damaged ports.', 'Connectivity: radios, network reset, SIM. Liquid: power off, no charging, indicators.'], lab: 'c1-mob-ts-wrap' }
+  });
+
+  // ===================== 5.5 Network issues =====================
+  T('c1-netts', 'Choppy calls and slow Wi-Fi', 'Measure latency, jitter and signal',
+    'Ticket: "Teams calls are robotic and the Internet is slow at my desk, but fine in the break room." Command Prompt on the user\'s laptop.',
+    { shell: 'cmd', prompt: 'C:\\Users\\kpatel>' },
+    [{ t: 'Check the Wi-Fi signal and link rate.', accept: [/^netsh wlan show interfaces?$/i], show: 'netsh wlan show interfaces', hint: 'netsh wlan show interfaces', out: '    Band                   : 2.4 GHz\n    Channel                : 6\n    Receive rate (Mbps)    : 26\n    Signal                 : 31%', ask: { q: 'What is the signal strength (%)?', accept: ['31', '31%'], why: 'Weak signal at the desk — far from the AP or blocked (concrete, metal, a microwave on 2.4 GHz). That causes intermittent wireless connectivity and slow speeds.' }, why: 'Signal first.' },
+     { t: 'Send 20 pings to the gateway (10.4.0.1) to measure latency and loss on the local link.', accept: [/^ping -n 20 10\.4\.0\.1$/i, /^ping 10\.4\.0\.1 -n 20$/i], show: 'ping -n 20 10.4.0.1', hint: 'ping -n 20 <gateway>', out: 'Reply from 10.4.0.1: time=3ms\nReply from 10.4.0.1: time=148ms\nRequest timed out.\nReply from 10.4.0.1: time=9ms\nReply from 10.4.0.1: time=211ms\n…\nPackets: Sent = 20, Received = 17, Lost = 3 (15% loss),\nMinimum = 3ms, Maximum = 211ms, Average = 64ms', ask: { q: 'What percent packet loss is there to the gateway?', accept: ['15', '15%'], why: 'Loss + wildly varying times (3 → 211 ms) = high latency and jitter on the Wi-Fi hop itself. Voice needs under ~30 ms jitter and under 1% loss.' }, why: 'Latency and jitter cause poor VoIP quality.' },
+     { t: 'Trace the full path to the Teams service with per-hop loss statistics.', accept: [/^pathping( -n)? teams\.microsoft\.com$/i], show: 'pathping teams.microsoft.com', hint: 'pathping <host> (traceroute + per-hop loss)', out: 'Computing statistics for 50 seconds...\nHop  RTT    Source to Here   Node\n  0                           kpatel-lt [10.4.0.57]\n  1  71ms    15/ 100 = 15%    10.4.0.1\n  2   9ms     0/ 100 =  0%    203.0.113.1\n  3  12ms     0/ 100 =  0%    teams edge', ask: { q: 'At which hop does the loss start? (number)', accept: ['1'], why: 'Loss only at hop 1 (the wireless link to the AP); the ISP path is clean. The fix is local wireless, not the Internet provider.' }, why: 'Isolate local vs external problems.' },
+     { t: 'Look at nearby networks and channels for external interference.', accept: [/^netsh wlan show networks mode=bssid$/i], show: 'netsh wlan show networks mode=bssid', hint: 'netsh wlan show networks mode=bssid', out: 'SSID 1 : CORP         Band : 2.4 GHz  Channel : 6   Signal : 31%\nSSID 1 : CORP         Band : 5 GHz    Channel : 44  Signal : 58%\nSSID 2 : WAREHOUSE-CAM Band : 2.4 GHz Channel : 6   Signal : 80%', why: 'A strong camera network on the same 2.4 GHz channel = co-channel interference. Move the laptop to 5 GHz (58%), and ask the network team to move the camera AP or add an AP near the desk.' }],
+    'Network tickets: measure (signal, latency, loss, jitter) → isolate the hop (local, ISP, service) → fix the right layer → re-measure.',
+    ['netsh wlan show interfaces, ping -n, pathping, netsh wlan show networks mode=bssid.']);
+  T('c1-flap', 'The port that keeps dropping', 'Port flapping on a switch',
+    'Ticket: a desk PC loses its network connection every few minutes. It is on switch SW1 port Gi1/0/14. You are on the switch CLI.',
+    { shell: 'ios', prompt: 'SW1#' },
+    [{ t: 'Show the interface details for Gi1/0/14.', accept: [/^sh(ow)? int(erfaces?)? g(i|igabitethernet)1\/0\/14$/i], show: 'show interfaces gi1/0/14', hint: 'show interfaces <port>', out: 'GigabitEthernet1/0/14 is up, line protocol is up\n  Full-duplex, 100Mb/s, media type is 10/100/1000BaseTX\n  27 interface resets\n  Input errors 4812, CRC 4790\n  Last input 00:00:01, output 00:00:00', ask: { q: 'How many CRC errors are there?', accept: ['4790'], why: 'High CRC errors + a gigabit port running at 100 Mb/s + many resets = a bad cable or connector (a pair is damaged, so it falls back to 100 Mb/s).' }, why: 'Read the physical-layer counters.' },
+     { t: 'Check the log for link up/down events on that port.', accept: [/^sh(ow)? log(ging)? \| (i|in|inc|include) (gi|gigabitethernet)?1\/0\/14$/i], show: 'show logging | include 1/0/14', hint: 'show logging | include <port>', out: '%LINK-3-UPDOWN: Interface GigabitEthernet1/0/14, changed state to down\n%LINK-3-UPDOWN: Interface GigabitEthernet1/0/14, changed state to up\n%LINK-3-UPDOWN: Interface GigabitEthernet1/0/14, changed state to down\n%LINK-3-UPDOWN: Interface GigabitEthernet1/0/14, changed state to up', why: 'Port flapping: the link goes up and down repeatedly. Replace the patch cable; test the wall run with a cable tester.' },
+     { t: 'After the cable is replaced, clear the counters so you can confirm the fix.', accept: [/^clear counters( g(i|igabitethernet)1\/0\/14)?$/i], show: 'clear counters gi1/0/14', hint: 'clear counters <port>', out: 'Clear "show interface" counters on this interface [confirm]\n[OK]', why: 'Fresh counters show whether errors continue.' },
+     { t: 'Check the interface again.', accept: [/^sh(ow)? int(erfaces?)? g(i|igabitethernet)1\/0\/14$/i], show: 'show interfaces gi1/0/14', hint: 'Same as step 1.', out: 'GigabitEthernet1/0/14 is up, line protocol is up\n  Full-duplex, 1000Mb/s\n  0 interface resets\n  Input errors 0, CRC 0', why: 'Gigabit, no errors, no resets. Fixed and documented.' }],
+    'Port flapping / slow wired speed: interface counters (CRC, resets, speed/duplex) → logs → replace cable → clear counters → verify.',
+    ['show interfaces, show logging | include, clear counters.']);
+  M('c1-netsym', 'Network symptom → likely cause', 'Wireless, speed, latency, jitter, VoIP, flapping, interference, authentication',
+    'Pick the most likely cause.', ['Weak signal / too far from AP', 'Bandwidth saturation', 'APIPA / DHCP problem', 'Jitter on the network', 'QoS not configured for voice', 'Bad cable (port flapping)', 'External interference', 'Wrong password / expired certificate', 'ISP or upstream outage'],
+    [['Wi-Fi drops in and out in one corner of the office', 'Weak signal / too far from AP', 'Intermittent wireless connectivity.'], ['Everyone is slow at 9 a.m. when cloud backups start', 'Bandwidth saturation', 'Slow network speeds.'], ['Laptop shows "No Internet" with a 169.254 address', 'APIPA / DHCP problem', 'Limited connectivity.'], ['Ping times jump between 5 ms and 200 ms', 'Jitter on the network', 'Jitter.'], ['Calls are choppy only when large downloads run', 'QoS not configured for voice', 'Poor VoIP quality.'], ['Switch log shows a port going up and down every minute', 'Bad cable (port flapping)', 'Port flapping.'], ['Wi-Fi fails whenever the break-room microwave runs', 'External interference', '2.4 GHz interference.'], ['802.1X Wi-Fi rejects a user since the weekend', 'Wrong password / expired certificate', 'Authentication failures.'], ['All sites unreachable; ping to gateway works, beyond it fails', 'ISP or upstream outage', 'Intermittent internet connectivity.']],
+    'Measure, then isolate: device, Wi-Fi/cable, LAN, ISP.');
+
+  RK.add({ track: TR, id: '5.5', dom: 5, short: 'Network issues', title: 'Given a scenario, troubleshoot network issues',
+    goal: 'Troubleshoot intermittent wireless, slow speeds, limited connectivity, jitter, poor VoIP, port flapping, high latency, interference, authentication failures and intermittent Internet.',
+    kw: /\b(intermittent|slow network|limited connectivity|jitter|voip|call quality|port flap|flapping|latency|interference|authentication fail|no internet|packet loss|pathping|crc)/,
+    parts: [
+      P('Wireless, speed and connectivity', 'Troubleshoot intermittent wireless connectivity, slow speeds, limited connectivity, external interference, authentication failures and intermittent Internet.',
+        `<table><tr><th>Symptom</th><th>Common causes</th><th>Check / fix</th></tr>
+<tr><td><b>Intermittent wireless connectivity</b></td><td>Weak signal, roaming, channel overlap, power saving</td><td>Signal %, AP placement, 5 GHz, driver/power settings.</td></tr>
+<tr><td><b>Slow network speeds</b></td><td>Saturation, duplex/speed mismatch, 2.4 GHz, bad cable, malware</td><td>Link speed, utilization, cable test.</td></tr>
+<tr><td><b>Limited connectivity</b></td><td>APIPA (no DHCP), wrong gateway/DNS, captive portal</td><td><code>ipconfig</code>, renew, DNS test.</td></tr>
+<tr><td><b>External interference</b></td><td>Microwaves, cordless phones, neighbors, Bluetooth, metal/concrete</td><td>Wi-Fi analyzer; change channel/band.</td></tr>
+<tr><td><b>Authentication failures</b></td><td>Wrong/expired password, expired certificate (802.1X), wrong security type</td><td>Re-enter credentials; check RADIUS/cert dates.</td></tr>
+<tr><td><b>Intermittent internet connectivity</b></td><td>ISP problems, modem/router, DNS</td><td>Ping gateway vs beyond; pathping; ISP status.</td></tr></table>` + pro('Always test from the bottom up: link light/signal → IP config → ping gateway → ping an Internet IP → resolve a name. Where it fails tells you where to look.') + trap('Limited connectivity with a 169.254 address is a DHCP problem, not a DNS problem.'),
+        [['Wi-Fi drops every time the microwave is used. What is this?', 'External interference on 2.4 GHz', ['DHCP failure', 'Port flapping', 'Expired certificate'], 'Interference.'],
+         ['A laptop shows limited connectivity and 169.254.x.x. Where do you look?', 'DHCP / the connection to the DHCP server', ['DNS records', 'The printer', 'The VoIP phone'], 'APIPA.']],
+        'c1-netts'),
+      P('Latency, jitter, VoIP and port flapping', 'Troubleshoot jitter, poor VoIP quality, high latency and port flapping.',
+        `<ul><li><b>High latency</b> — long delay (ms) for each round trip: distance (satellite), congestion, overloaded devices, Wi-Fi retries. Measure with <code>ping</code>, find the hop with <code>tracert</code>/<code>pathping</code>.</li>
+<li><b>Jitter</b> — variation in latency between packets. Bad for real-time traffic even when average latency is fine.</li>
+<li><b>Poor VoIP quality</b> — robotic, choppy, one-way audio: jitter, packet loss, latency, no <b>QoS</b> priority for voice, busy Wi-Fi. Targets: under ~150 ms latency, under ~30 ms jitter, under 1% loss.</li>
+<li><b>Port flapping</b> — a switch port repeatedly goes up and down: bad cable or connector, failing NIC, power-saving, duplex mismatch, loose patch. Switch logs and interface counters (CRC errors, resets) show it.</li></ul>
+<p>Tools: <code>ping -t</code>/<code>-n</code>, <code>pathping</code> (per-hop loss), switch <code>show interfaces</code>/<code>show logging</code>, Wi-Fi analyzer, the VoIP system\'s call-quality reports.</p>` + pro('For voice complaints, ask "is it everyone or one person, and wired or Wi-Fi?". One Wi-Fi user = local signal; everyone at one time of day = bandwidth/QoS.') + trap('Jitter is the variation in delay, not the delay itself. A steady 80 ms is better for voice than 10–150 ms swinging.'),
+        [['What is jitter?', 'Variation in latency between packets', ['Total bandwidth', 'Packet size', 'Signal strength'], 'Delay variation.'],
+         ['A switch log shows a port going up and down repeatedly. First fix?', 'Replace and test the cable', ['Reboot the DNS server', 'Change the SSID', 'Update the printer driver'], 'Port flapping.']],
+        'c1-flap')
+    ],
+    wrap: { recap: ['Test bottom-up: link/signal → IP → gateway → Internet IP → DNS name.', 'Intermittent wireless/slow speeds: signal, band, channel, saturation, cable, duplex.', 'Limited connectivity = APIPA/DHCP, gateway or DNS. External interference → analyzer, change channel/band.', 'Authentication failures: credentials, expired certificates, security type.', 'Latency (delay), jitter (variation), loss → poor VoIP; QoS for voice.', 'Port flapping → cable/NIC; read CRC and resets; intermittent Internet → pathping, ISP.'], lab: 'c1-netsym' }
+  });
+
+  // ===================== 5.6 Printer issues =====================
+  T('c1-printts', 'Frozen print queue', 'Clear stuck jobs and restart the spooler',
+    'Ticket: nobody on the second floor can print. 40 jobs are pending in the queue for "Floor2-MFD". Elevated PowerShell on print server PS01.',
+    { shell: 'ps', prompt: 'PS C:\\Windows\\system32>' },
+    [{ t: 'List the jobs in the Floor2-MFD queue.', accept: [/^get-printjob( -printername)? "?floor2-mfd"?( \| select(-object)? .+)?$/i], show: 'Get-PrintJob -PrinterName "Floor2-MFD" | Select-Object Id,DocumentName,UserName,JobStatus -First 3', hint: 'Get-PrintJob -PrinterName …', out: 'Id DocumentName        UserName JobStatus\n-- ------------        -------- ---------\n 4 Q3-report.pdf       mlee     Error, Printing\n 5 Invoice-2291.docx   jdoe     Spooling\n 6 Badges.xlsx         rkim     Spooling', ask: { q: 'Which job Id is stuck in an error and blocking the queue?', accept: ['4'], why: 'One corrupt job blocks everything behind it: multiple prints pending in the queue / frozen print queue.' }, why: 'Find the blocking job.' },
+     { t: 'Remove the stuck job.', accept: [/^remove-printjob -printername "?floor2-mfd"? -id 4$/i, /^remove-printjob -id 4 -printername "?floor2-mfd"?$/i], show: 'Remove-PrintJob -PrinterName "Floor2-MFD" -ID 4', hint: 'Remove-PrintJob -PrinterName … -ID …', out: '', why: 'If the queue still does not move, the spooler is hung.' },
+     { t: 'Stop the Print Spooler service.', accept: [/^stop-service( -name)? spooler( -force)?$/i, /^net stop spooler$/i], show: 'Stop-Service Spooler -Force', hint: 'Stop-Service Spooler', out: '', why: 'Needed before clearing leftover spool files.' },
+     { t: 'Delete leftover spool files from the spool folder.', accept: [/^remove-item c:\\windows\\system32\\spool\\printers\\\*( -force)?$/i, /^del \/q c:\\windows\\system32\\spool\\printers\\\*$/i], show: 'Remove-Item C:\\Windows\\System32\\spool\\PRINTERS\\* -Force', hint: 'Remove-Item C:\\Windows\\System32\\spool\\PRINTERS\\*', out: '', why: 'Corrupt .SPL/.SHD files are what keep a queue frozen after restarts.' },
+     { t: 'Start the spooler again and confirm it is running.', accept: [/^start-service( -name)? spooler( -passthru)?$/i, /^net start spooler$/i], show: 'Start-Service Spooler -PassThru', hint: 'Start-Service Spooler', out: 'Status   Name     DisplayName\n------   ----     -----------\nRunning  Spooler  Print Spooler', why: 'Queue flowing. Ask users to resend the lost jobs (the cleared ones are gone). Note: the job owner\'s PDF may be corrupt.' }],
+    'Frozen queue: find the blocking job → remove → if still stuck, stop spooler → clear spool folder → start spooler → verify.',
+    ['Get-PrintJob, Remove-PrintJob, Stop/Start-Service Spooler, spool\\PRINTERS.']);
+  M('c1-printsym', 'Printer symptom → cause', 'Print quality, feeding, queue and hardware',
+    'Pick the most likely cause.', ['Dirty/scratched drum or dirty printhead', 'Wrong driver / corrupt job', 'Paper path obstruction or worn rollers', 'Low toner / ink', 'Pickup roller worn / wrong paper', 'Separation pad worn / humid paper', 'Toner leak / dirty fuser', 'Ghosting: drum cleaning or fuser', 'Failing gears / motor', 'Finisher jam', 'Driver orientation setting', 'Tray sensor / tray settings', 'Network/IP or cable issue'],
+    [['Vertical lines down every printed page', 'Dirty/scratched drum or dirty printhead', 'Lines down the page.'], ['Pages of random symbols', 'Wrong driver / corrupt job', 'Garbled print.'], ['Paper jams in the same spot every time', 'Paper path obstruction or worn rollers', 'Paper jams.'], ['Print getting lighter across the whole page', 'Low toner / ink', 'Faded prints.'], ['Printer makes noise but takes no paper', 'Pickup roller worn / wrong paper', 'Paper not feeding.'], ['Several sheets pulled through at once', 'Separation pad worn / humid paper', 'Multipage misfeed.'], ['Random black dots across the page', 'Toner leak / dirty fuser', 'Speckling.'], ['Faint copy of the image repeats lower on the page', 'Ghosting: drum cleaning or fuser', 'Double/echo images.'], ['Loud grinding when printing starts', 'Failing gears / motor', 'Grinding noise.'], ['Booklets stop with a staple error', 'Finisher jam', 'Finishing issues.'], ['Landscape document prints portrait and cut off', 'Driver orientation setting', 'Incorrect page orientation.'], ['Printer says tray 2 is missing though it is installed', 'Tray sensor / tray settings', 'Tray not recognized.'], ['Printer shows offline to everyone after a power outage', 'Network/IP or cable issue', 'Connectivity issues.']],
+    'Quality → consumables/drum/fuser; feeding → rollers/pads/paper; jobs → driver/queue; offline → network.');
+  M('c1-print-ts-wrap', 'Printer help desk', 'Combined 5.6',
+    'Pick the best first action.', ['Clear the queue and restart the spooler', 'Install the correct driver', 'Replace the toner cartridge', 'Clean/replace pickup rollers', 'Use fresh, dry paper', 'Remove the jam and check the paper path', 'Clear the staple jam', 'Set a DHCP reservation / fix IP', 'Change orientation in the app/driver'],
+    [['20 jobs pending and nothing prints', 'Clear the queue and restart the spooler', 'Frozen queue.'], ['Garbled symbols after a new PC was set up', 'Install the correct driver', 'Driver.'], ['Faded prints on a laser, toner low warning', 'Replace the toner cartridge', 'Consumable.'], ['Paper not feeding from tray 1', 'Clean/replace pickup rollers', 'Rollers.'], ['Multipage misfeeds in a humid storeroom', 'Use fresh, dry paper', 'Humidity.'], ['Paper jam light, crumpled sheet inside', 'Remove the jam and check the paper path', 'Jam.'], ['Finisher reports staple jam', 'Clear the staple jam', 'Finishing.'], ['Printer IP changed after power outage; shows offline', 'Set a DHCP reservation / fix IP', 'Connectivity.'], ['Spreadsheet prints portrait instead of landscape', 'Change orientation in the app/driver', 'Orientation.']],
+    'Most printer tickets: queue, driver, consumable, rollers or network.');
+
+  RK.add({ track: TR, id: '5.6', dom: 5, short: 'Printer issues', title: 'Given a scenario, troubleshoot printer issues',
+    goal: 'Troubleshoot print quality, feeding, jams, queue, noise, finishing, orientation, tray and connectivity problems.',
+    kw: /\b(lines down|garbled|paper jam|faded|not feeding|misfeed|print queue|pending|speckl|double image|echo|ghost|grinding|staple|hole punch|finishing|orientation|tray not recognized|printer offline|spooler)/,
+    parts: [
+      P('Print quality problems', 'Troubleshoot lines down the page, garbled print, faded prints, speckling and double/echo images.',
+        `<table><tr><th>Symptom</th><th>Laser cause</th><th>Inkjet cause</th></tr>
+<tr><td><b>Lines down the printed pages</b></td><td>Scratched/dirty drum, dirty corona/transfer roller</td><td>Clogged nozzles → clean printhead</td></tr>
+<tr><td><b>Garbled print</b></td><td colspan="2">Wrong or corrupt driver, corrupt job, wrong PCL/PS language — reinstall driver, clear queue</td></tr>
+<tr><td><b>Faded prints</b></td><td>Low toner, toner density setting, economy mode</td><td>Low ink, dried head</td></tr>
+<tr><td><b>Speckling on printed pages</b></td><td>Toner leaking or loose toner inside, dirty fuser/drum</td><td>Ink spatter, dirty rollers</td></tr>
+<tr><td><b>Double/echo images</b></td><td>Drum not cleaning fully, fuser problem — ghosting</td><td>—</td></tr></table>
+<p>Also: toner that smudges off = fuser not hot enough; colors misaligned = calibrate.</p>` + pro('Print the printer\'s own test/config page from its front panel. If that page is fine, the hardware is fine and the problem is the driver, app or job.') + trap('Garbled print is a driver/data problem, not a toner or hardware problem.'),
+        [['A laser printer prints a faint repeat of the image lower on the page. Problem?', 'Double/echo image (ghosting) from the drum or fuser', ['Wrong driver', 'Paper not feeding', 'Frozen queue'], 'Ghosting.'],
+         ['A new PC prints pages of random symbols. Fix?', 'Install the correct driver and clear the job', ['Replace the toner', 'Clean the fuser', 'Replace the tray'], 'Garbled print.']],
+        'c1-printsym'),
+      P('Feeding, queue, hardware and connectivity', 'Troubleshoot paper jams, feeding and misfeeds, pending and frozen queues, grinding noises, finishing, orientation, tray and connectivity issues.',
+        `<ul><li><b>Paper jams</b> — remove gently in the paper-path direction; check for torn pieces, worn rollers, wrong paper weight.</li>
+<li><b>Paper not feeding</b> — worn/dirty pickup rollers, wrong paper size setting, overfilled tray. <b>Multipage misfeed</b> — worn separation pad, humid or unfanned paper.</li>
+<li><b>Multiple prints pending in queue</b> / <b>frozen print queue</b> — a stuck job or hung spooler: delete the job, restart the Print Spooler, clear <code>spool\\PRINTERS</code>.</li>
+<li><b>Grinding noise</b> — stripped gears, failing motor, obstruction; stop and inspect.</li>
+<li><b>Finishing issues</b> — staple jams, hole punch full/jammed; clear and empty the punch bin.</li>
+<li><b>Incorrect page orientation</b> — app or driver orientation setting.</li>
+<li><b>Tray not recognized</b> — tray not configured in the driver\'s device settings, bad sensor, tray not seated.</li>
+<li><b>Connectivity issues</b> — printer IP changed (use a reservation), cable/Wi-Fi, port in the driver, firewall.</li></ul>` + pro('"Printer offline" after a power cut is almost always a new DHCP address. Give every printer a reservation and point the port at it.') + trap('Multipage misfeed (several sheets at once) is the separation pad; no feeding at all is the pickup roller.'),
+        [['Every job is stuck behind one errored job. First fix?', 'Delete the stuck job; restart the spooler if needed', ['Replace the fuser', 'Reinstall Windows', 'Replace the tray'], 'Frozen queue.'],
+         ['A printer pulls several sheets at once. Likely part?', 'Separation pad (or humid paper)', ['Fuser', 'Drum', 'Toner'], 'Multipage misfeed.']],
+        'c1-printts')
+    ],
+    wrap: { recap: ['Lines down the page → drum (laser) or printhead (inkjet); faded → toner/ink; speckling → toner leak/dirty parts.', 'Garbled print → driver/job; double/echo images → drum cleaning or fuser.', 'Jams → paper path, rollers, paper type; not feeding → pickup roller; misfeed → separation pad/humidity.', 'Pending/frozen queue → delete job, restart spooler, clear spool folder.', 'Grinding → gears/motor; finishing → staple/punch; orientation → driver/app; tray not recognized → device settings/sensor.', 'Connectivity → IP/reservation, cable/Wi-Fi, driver port.'], lab: 'c1-print-ts-wrap' }
+  });
+
+  // ===================== Domain 5 combined lab =====================
+  T('c1-d5-wrap', 'Domain 5 shift: the Monday queue', 'Hardware and network troubleshooting in one shift',
+    'Four tickets on one desktop and its network. Elevated PowerShell. Each task names its objective; no command hints.',
+    { shell: 'ps', prompt: 'PS C:\\Windows\\system32>' },
+    [{ t: '<b>5.1</b> — The PC rebooted twice overnight. Count the Kernel-Power 41 events.', accept: [/^\(?get-winevent -filterhashtable @\{ ?logname ?= ?['"]?system['"]?; ?id ?= ?41 ?\}( -maxevents \d+)?\)?(\.count| \| measure(-object)?)?$/i], show: "(Get-WinEvent -FilterHashtable @{LogName='System'; Id=41}).Count", hint: "5.1 — Get-WinEvent with Id=41", out: '2', why: 'Two unexpected power losses. Next: temperatures and PSU.' },
+     { t: '<b>5.2</b> — Check physical disk health.', accept: [/^get-physicaldisk( \| select(-object)? .+| \| (ft|format-table) .+)?$/i], show: 'Get-PhysicalDisk | Select-Object FriendlyName,HealthStatus,OperationalStatus', hint: '5.2 — Get-PhysicalDisk', out: 'FriendlyName HealthStatus OperationalStatus\n------------ ------------ -----------------\nNVMe-512     Healthy      OK\nHDD-2TB      Unhealthy    Lost Communication', ask: { q: 'Which drive has a problem?', accept: ['hdd-2tb'], why: 'Lost communication: loose SATA cable or failing drive. Reseat; if it returns, back up and check S.M.A.R.T.' }, why: 'Drives.' },
+     { t: '<b>5.5</b> — Test the network path to the file server FS01 on the SMB port.', accept: [/^test-netconnection( -computername)? fs01 -port 445$/i, /^tnc fs01 -port 445$/i], show: 'Test-NetConnection FS01 -Port 445', hint: '5.5 — Test-NetConnection', out: 'TcpTestSucceeded : True\nPingReplyDetails (RTT) : 1 ms', why: 'Network fine — the "slow files" complaint was the failing HDD, not the network.' },
+     { t: '<b>5.6</b> — The local printer queue is stuck. Restart the print spooler in one command.', accept: [/^restart-service( -name)? spooler( -force)?$/i], show: 'Restart-Service Spooler -Force', hint: '5.6 — Restart-Service', out: '', why: 'Queue cleared after the stuck job was deleted.' },
+     { t: '<b>5.3</b> — Second monitor is black. Check the display adapters.', accept: [/^get-pnpdevice -class display( \| select(-object)? .+)?$/i], show: 'Get-PnpDevice -Class Display', hint: '5.3 — Get-PnpDevice', out: 'Status Class   FriendlyName\n------ -----   ------------\nOK     Display NVIDIA T600', why: 'Adapter fine → check the monitor\'s input source and cable. (It was set to HDMI; the cable is DisplayPort.)' }],
+    'Domain 5 in one shift: power (5.1), drives (5.2), display (5.3), network (5.5), printing (5.6) — evidence first every time.',
+    ['Each task names its objective.']);
+
+  // ---------- extras + cards ----------
+  RK.extra(TR, '5.1', [
+    ['Which component most often causes POST beeps with no video?', 'RAM', ['Hard drive', 'Keyboard', 'Optical drive'], 'Reseat RAM.'],
+    ['What do swollen capacitors on a motherboard indicate?', 'The board is failing and should be replaced', ['A CMOS reset is needed', 'The RAM is mismatched', 'Overclocking is enabled'], 'Capacitor swelling.'],
+    ['A computer has no power at all. After the outlet, what do you test?', 'The power supply (PSU tester)', ['The DNS server', 'The monitor', 'The printer'], 'No power.'],
+    ['What is macOS\'s equivalent of a BSOD called?', 'Kernel panic', ['Pinwheel only', 'Force quit', 'Safe mode'], 'Crash screen.'],
+    ['Sluggish performance with high CPU temperature points to:', 'Thermal throttling from poor cooling', ['DNS failure', 'Bad printer driver', 'Low toner'], 'Throttling.'],
+    ['Which Windows tool tests RAM at boot?', 'Windows Memory Diagnostic (mdsched)', ['chkdsk', 'sfc', 'diskpart'], 'Memory test.'],
+    ['A grinding noise that changes with fan speed is most likely:', 'A failing fan bearing', ['A dead CMOS battery', 'A bad DIMM', 'A failing SSD'], 'Unusual noise.']
+  ]);
+  RK.extra(TR, '5.2', [
+    ['What does a S.M.A.R.T. warning mean?', 'The drive predicts it may fail soon', ['The drive is encrypted', 'The drive is full', 'The RAID is RAID 0'], 'Predictive failure.'],
+    ['Which RAID level loses all data if one drive fails?', 'RAID 0', ['RAID 1', 'RAID 5', 'RAID 10'], 'No redundancy.'],
+    ['What should you never do to a missing array before checking the configuration?', 'Initialize it', ['Read the logs', 'Check cables', 'Import the foreign config'], 'Initializing erases.'],
+    ['A new drive is detected in BIOS but has no volume in Windows. What next?', 'Initialize, partition and format it in Disk Management', ['Replace it', 'Flash the BIOS', 'Run sfc'], 'New disk.'],
+    ['Extended read/write times on an older HDD suggest:', 'A failing drive or heavy fragmentation', ['Wrong printer driver', 'Weak Wi-Fi', 'A bad monitor'], 'Performance symptom.'],
+    ['Why back up before rebuilding a degraded array?', 'The rebuild stresses the remaining drives, which may fail', ['Rebuilds delete data', 'It is required by Windows', 'It speeds up the rebuild'], 'Risk.']
+  ]);
+  RK.extra(TR, '5.3', [
+    ['A monitor shows "No signal" while the PC runs. First check?', 'The monitor input source and the cable', ['Replace the GPU', 'Reinstall the OS', 'Replace the PSU'], 'Input/cable.'],
+    ['Which display issue is permanent image retention from static content?', 'Burn-in', ['Dead pixel', 'Keystone', 'Flicker'], 'Burn-in.'],
+    ['A projector fan runs but there is no light. Most likely?', 'Burnt-out bulb', ['Wrong input', 'Dead pixels', 'Wrong refresh rate'], 'Lamp.'],
+    ['Colors look wrong after the monitor cable was bent. Fix?', 'Replace the cable', ['Recalibrate the CPU', 'Replace RAM', 'Change DNS'], 'Pin damage.'],
+    ['Black bars appear around the image on a TV. Which setting?', 'Resolution/aspect ratio or scaling', ['Audio device', 'Input source', 'Projector lamp'], 'Sizing.'],
+    ['A laptop display is very dim even at full brightness. Likely?', 'Failing backlight', ['Wrong DNS', 'Bad keyboard', 'Low disk space'], 'Dim image.']
+  ]);
+  RK.extra(TR, '5.4', [
+    ['What is the safest action with a swollen phone battery?', 'Stop using and charging it, and replace it', ['Press it flat', 'Charge it to 100%', 'Puncture it to release gas'], 'Fire risk.'],
+    ['Why might a phone with an old battery feel slow?', 'The OS throttles the CPU to prevent shutdowns', ['Bluetooth is on', 'The SIM is old', 'GPS is enabled'], 'Battery throttling.'],
+    ['Where is a phone\'s liquid contact indicator usually found?', 'In the SIM tray or near the battery', ['On the screen', 'Inside the app store', 'On the charger'], 'LCI.'],
+    ['An active stylus stopped working. First check?', 'Charge or re-pair the stylus', ['Replace the screen', 'Factory reset', 'Replace the battery'], 'Stylus power.'],
+    ['Which is a sign of mobile malware?', 'Unexplained heat, battery drain and data use', ['Rotation lock on', 'Dark mode', 'A cracked case'], 'Malware.'],
+    ['A phone\'s USB-C port is cracked. Interim workaround?', 'Use wireless charging until the port is replaced', ['Glue the port', 'Use a higher-wattage charger', 'Disable Wi-Fi'], 'Damaged port.']
+  ]);
+  RK.extra(TR, '5.5', [
+    ['Which tool shows packet loss at each hop on the path?', 'pathping', ['ipconfig', 'nslookup', 'arp'], 'Per-hop statistics.'],
+    ['Calls are choppy only during large downloads. Fix?', 'Configure QoS to prioritize voice', ['Change DNS', 'Replace the phone', 'Use APIPA'], 'Priority.'],
+    ['What do rising CRC errors on a switch port usually indicate?', 'A bad cable or connector', ['A DNS error', 'A full disk', 'A wrong SSID'], 'Physical layer.'],
+    ['802.1X Wi-Fi fails for everyone the morning a certificate expired. Problem?', 'Authentication failure due to the expired certificate', ['Interference', 'APIPA', 'Port flapping'], 'Authentication.'],
+    ['Ping to the gateway works but not to any Internet address. Where is the problem?', 'Beyond the LAN — router/ISP', ['The NIC', 'The cable', 'The local IP'], 'Isolate.'],
+    ['Which band is most affected by microwave ovens?', '2.4 GHz', ['5 GHz', '6 GHz', 'Cellular 5G'], 'Interference.']
+  ]);
+  RK.extra(TR, '5.6', [
+    ['Where are Windows spool files stored?', 'C:\\Windows\\System32\\spool\\PRINTERS', ['C:\\Temp\\print', 'C:\\Users\\Public', 'C:\\Program Files\\Printers'], 'Spool folder.'],
+    ['Toner smears off the page when rubbed. Which part?', 'Fuser', ['Pickup roller', 'Separation pad', 'Tray sensor'], 'Not fused.'],
+    ['Paper is not picked up from the tray at all. Likely part?', 'Pickup roller', ['Fuser', 'Drum', 'Toner'], 'Feeding.'],
+    ['A printer shows offline after a power outage. Most likely?', 'Its IP address changed', ['Toner is low', 'Drum is scratched', 'Driver is PostScript'], 'Connectivity.'],
+    ['Black dots randomly across laser pages suggest:', 'Loose toner inside or a dirty drum/fuser', ['Wrong driver', 'Frozen queue', 'Wrong orientation'], 'Speckling.'],
+    ['A newly installed tray 3 is not recognized. First check?', 'Enable it in the driver\'s device settings and reseat it', ['Replace the fuser', 'Clear the spooler', 'Change toner'], 'Tray config.']
+  ]);
+  RK.cards(TR, '5.1', [['POST beeps', 'Look up code; reseat RAM first.'], ['Event ID 41', 'Unexpected power loss.'], ['Swollen capacitors', 'Replace board/PSU.'], ['Wrong date/time', 'CMOS battery.']]);
+  RK.cards(TR, '5.2', [['Clicking/grinding', 'Mechanical failure — back up, replace.'], ['S.M.A.R.T.', 'Drive self-monitoring predictive failure.'], ['Degraded array', 'Replace member, rebuild (back up first).'], ['Array missing', 'Import config; never initialize.']]);
+  RK.cards(TR, '5.3', [['No signal', 'Input source, cable, projection mode.'], ['Projector shutdown', 'Filter/fan overheating.'], ['Fuzzy', 'Native resolution, focus.'], ['Keystone', 'Fixes trapezoid projected image.']]);
+  RK.cards(TR, '5.4', [['Swollen battery', 'Stop use; replace.'], ['Liquid damage', 'Power off; no charging.'], ['Unable to install apps', 'Storage, OS version, MDM.'], ['Cursor drift', 'Clean, calibrate, update.']]);
+  RK.cards(TR, '5.5', [['Jitter', 'Variation in latency.'], ['Port flapping', 'Link up/down repeatedly — cable/NIC.'], ['Limited connectivity', 'APIPA/DHCP, gateway, DNS.'], ['pathping', 'Per-hop latency and loss.']]);
+  RK.cards(TR, '5.6', [['Frozen queue', 'Delete job, restart spooler, clear spool folder.'], ['Garbled print', 'Driver/job.'], ['Ghosting', 'Drum cleaning/fuser.'], ['Misfeed vs no feed', 'Separation pad vs pickup roller.']]);
 })();
 
 ;

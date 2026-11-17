@@ -21,6 +21,12 @@
 "3.7": "unbox;setup location;drivers;PCL;PostScript;firmware;USB;Ethernet;wireless;printer share;print server;duplex;orientation;tray settings;quality;user authentication;badging;audit logs;secured prints;email;SMB;cloud services;ADF;flatbed",
 "3.8": "laser;toner;maintenance kit;calibrate;clean;imaging process;inkjet;ink cartridge;printhead;roller;feeder;clear jams;thermal;feed assembly;special thermal paper;heating element;remove debris;impact;multipart paper;ribbon",
 "4.1": "sandbox;test development;application virtualization;legacy software;cross-platform virtualization;security;network;storage;VDI;container;Type 1;Type 2",
-"4.2": "private;public;hybrid;community;IaaS;SaaS;PaaS;shared;dedicated;metered utilization;ingress;egress;elasticity;availability;file synchronization;multitenancy"
+"4.2": "private;public;hybrid;community;IaaS;SaaS;PaaS;shared;dedicated;metered utilization;ingress;egress;elasticity;availability;file synchronization;multitenancy",
+"5.1": "POST beeps;proprietary crash screens;blank screen;no power;sluggish performance;overheating;burning smell;random shutdown;application crashes;unusual noise;capacitor swelling;inaccurate system date/time",
+"5.2": "LED status indicators;grinding noises;clicking sounds;bootable device not found;data loss/corruption;RAID failure;S.M.A.R.T. failure;extended read/write times;low IOPS;missing drives in OS;array missing;audible alarms",
+"5.3": "incorrect input source;physical cabling issues;burnt-out bulb;fuzzy image;display burn-in;dead pixels;flashing screen;incorrect color display;audio issues;dim image;intermittent projector shutdown;sizing issues;distorted image",
+"5.4": "poor battery health;swollen battery;broken screen;improper charging;poor/no connectivity;liquid damage;overheating;digitizer issues;physically damaged ports;malware;cursor drift/touch calibration;unable to install new applications;stylus does not work;degraded performance",
+"5.5": "intermittent wireless connectivity;slow network speeds;limited connectivity;jitter;poor VoIP quality;port flapping;high latency;external interference;authentication failures;intermittent internet connectivity",
+"5.6": "lines down the printed pages;garbled print;paper jams;faded prints;paper not feeding;multipage misfeed;multiple prints pending in queue;speckling on printed pages;double/echo images;grinding noise;finishing issues;staple jams;hole punch;incorrect page orientation;tray not recognized;connectivity issues;frozen print queue"
 }
 }
