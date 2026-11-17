@@ -62,7 +62,8 @@ Honesty rules for the grader:
 | Net+ Range (N10-009) | 19 | 17 | 18 | 19 | 17 | **90** | Hand-review the keyword-sorted question bank per objective; multi-step tickets for 3.4 and 5.4 |
 | A+ Range — Core 2 Domain 1 (rebuilt) | 19 | 17 | 18 | 19 | 17 | **90** | Hand-review the auto-sorted question bank (caps assessment at 18) |
 | A+ Range — Core 2 Domain 4 (rebuilt) | 19 | 17 | 17 | 19 | 17 | **89** | Hands-on capped at 17: 4.1–4.4 are scenario objectives with pick/order labs only — add one multi-step ticket lab (e.g. a ticketing-system or backup-restore simulation) |
-| A+ Range — the other 7 domains | 12 | 6 | 5 | 6 | 15 | **44** | Rebuild (queue below) |
+| A+ Range — Core 2 Domain 2 (rebuilt) | 19 | 17 | 18 | 19 | 17 | **90** | 2.10 has no terminal ticket (router config sim would lift it); hand-review the sorted bank |
+| A+ Range — the other 6 domains | 12 | 6 | 5 | 6 | 15 | **44** | Rebuild (queue below) |
 | Security+ Range (SY0-701) | 16 | 9 | 8 | 12 | 18 | **63** | Parts, callouts, paired labs on all 28 objectives |
 | Cloud Range (15 cert tracks) | 10 | 10 | 10 | 9 | 12 | **51** | One ladder rebuilt by official domain → objective |
 | Code Range (11 skill tracks) | 16 | 14 | 18 | 10 | 12 | **70** | Part format; Windows and Remote Access tracks |
@@ -85,7 +86,7 @@ Each item is one sitting. Finish, run the checker, push, tick it off here.
 - [x] Core 2 Domain 1 — Operating Systems (1.1–1.11)
 - [x] Core 2 Domain 1 depth pass to reach 90 (avg 172 words/part, 100% paired labs, 100% callouts, 11 terminal labs, 15+ questions per objective, 262/262 official bullets): add the missing On-the-job / Exam-trap callouts, pair labs with the parts that have none (1.1 p3, 1.2 p1, 1.3 p1, 1.4 p3, 1.5 p3, 1.8 p2, 1.9 p1, 1.11 p1), top up 1.11 and 1.10 to 15+ questions, run a bullet audit against `source/objectives/220-1202-core2.md`.
 - [x] Core 2 Domain 4 — Operational Procedures (4.1–4.10), 17 Nov: 25 parts, 6 terminal labs (PowerShell script, bash script review, RDP, SSH keys, WinRM, domain shift), 437/437 bullets. **4.8 scripting and 4.9 remote access get terminal labs** (ssh, mstsc, Enter-PSSession, winrm). Wrap lab id `c2-d4-wrap`.
-- [ ] Core 2 Domain 2 — Security (2.1–2.11). **2.2 covers Active Directory** (domain join, OUs, home folders, GPO, security groups, folder redirection): scenario labs + PowerShell terminal lab. Wrap lab `c2-d2-wrap`.
+- [x] Core 2 Domain 2 — Security (2.1–2.11), 17 Nov: 30 parts, 9 terminal labs incl. **Active Directory in PowerShell** (join, OU move, groups, home folder, gpresult), Defender/firewall, NTFS icacls, BitLocker, hardening, malware removal, hash check; 671/671 bullets. **2.2 covers Active Directory** (domain join, OUs, home folders, GPO, security groups, folder redirection): scenario labs + PowerShell terminal lab. Wrap lab `c2-d2-wrap`.
 - [ ] Core 2 Domain 3 — Software Troubleshooting (3.1–3.4). Symptom → cause → fix. Wrap lab `c2-d3-wrap`.
 - [ ] Core 1 Domain 1 — Mobile Devices (1.1–1.3). Wrap lab `c1-d1-wrap`.
 - [ ] Core 1 Domain 2 — Networking (2.1–2.8). Reuse ideas (not text) from Net+ Range. Wrap lab `c1-d2-wrap`.
@@ -131,6 +132,7 @@ cd .. && git add -A && git commit -m "…" && git push
 - Old question banks are kept: each objective declares `kw: /regex/`, and old questions/cards from the domain's old stage are sorted to the best-matching objective automatically; unmatched ones go to the domain test. So write `kw` with the objective's distinctive terms.
 - **Coverage audit (required for criterion 1):** list the official bullets per objective (see `source/tools/coverage-check.js` in the Net+ repo for the pattern) and confirm each appears in that objective's lesson text. Explain every miss.
 - The checker prints a `scorecard inputs` line — paste it with your grade.
+- An objective can list extra labs with `moreLabs: ['id']` (shown in its Labs tab, not paired to a part).
 - `rk-check.js` also types every terminal lab's own answers and fails if any lab does not complete.
 - `node rangekit/rk-coverage.js dist/index.html objectives/core2-bullets.json` is the coverage audit. Add each new domain's official bullets to that JSON (one `;`-separated line per objective) **before** writing the content, and write until it reports every bullet found.
 - The checker fails on: page errors, a learn part over 5 min, part + lab over 15 min, a part without a quick check or objective line, an objective with under 12 test questions (add `RK.extra`), a wrap with under 4 recap lines, match answers missing from their options, a terminal `show` command its own `accept` rejects, or a broken flip/lab/test flow.

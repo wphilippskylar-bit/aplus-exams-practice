@@ -21,6 +21,17 @@
 "4.7": "attire;jargon;slang;positive attitude;actively listen;interrupt;culturally sensitive;title;on time;distractions;personal calls;social media;difficult customer;argue;defensive;dismiss;judgmental;open-ended;restat;expectations;timeline;status;options;documentation;follow up;confidential",
 "4.8": ".bat;.ps1;.vbs;.sh;.js;.py;automation;restart;remap;install;backup;gather;update;malware;system settings;crash;resources",
 "4.9": "RDP;VPN;VNC;SSH;RMM;SPICE;WinRM;screen-sharing;videoconferencing;file transfer;desktop management;security",
-"4.10": "integration;appropriate use;plagiarism;bias;hallucination;accuracy;private;public;data security;data source;data privacy"
+"4.10": "integration;appropriate use;plagiarism;bias;hallucination;accuracy;private;public;data security;data source;data privacy",
+"2.1": "bollard;access control vestibule;badge reader;video surveillance;alarm;motion sensor;door lock;equipment lock;guard;fence;key fob;smart card;mobile digital key;keys;retina;fingerprint;palm;facial recognition;voice recognition;lighting;magnetometer;least privilege;zero trust;access control list;MFA;email;hardware token;authenticator app;SMS;voice call;TOTP;OTP;SAML;SSO;just-in-time;PAM;MDM;DLP;IAM;directory services",
+"2.2": "Defender Antivirus;activate;deactivate;definitions;firewall;port;application;local;Microsoft account;standard;administrator;guest;power user;PIN;fingerprint;facial recognition;SSO;passwordless;Windows Hello;NTFS;share permissions;attributes;inheritance;run as administrator;UAC;BitLocker;BitLocker To Go;EFS;Active Directory;join;log-in script;organizational unit;home folder;Group Policy;security group;folder redirection",
+"2.3": "WPA2;WPA3;TKIP;AES;RADIUS;TACACS+;Kerberos;multifactor",
+"2.4": "Trojan;rootkit;virus;spyware;ransomware;keylogger;boot sector;cryptominer;stalkerware;fileless;adware;PUP;recovery console;EDR;MDR;XDR;antivirus;anti-malware;email security gateway;software firewall;anti-phishing training;reinstall",
+"2.5": "phishing;vishing;smishing;QR code;spear phishing;whaling;shoulder surfing;tailgating;impersonation;dumpster diving;DoS;DDoS;evil twin;zero-day;spoofing;on-path;brute-force;dictionary;insider threat;SQL injection;cross-site scripting;business email compromise;supply chain;non-compliant;unpatched;unprotected;end of life;BYOD",
+"2.6": "investigate;verify;quarantine;disable System Restore;remediate;update anti-malware;safe mode;preinstallation environment;reimage;schedule scans;restore point;educate",
+"2.7": "data-at-rest;encryption;length;character;uniqueness;complexity;expiration;BIOS;UEFI;screen saver;log off;laptop;PII;password manager;restrict user permissions;log-in times;guest account;failed attempts;lockout;timeout;account expiration;default administrator;AutoRun;unused services",
+"2.8": "device encryption;screen lock;facial recognition;PIN;fingerprint;pattern;swipe;configuration profile;OS updates;application updates;antivirus;anti-malware;content filtering;locator;remote wipe;remote backup;failed log-in;MDM;BYOD;corporate-owned;profile security",
+"2.9": "drilling;shredding;degaussing;incineration;erasing;wiping;low-level format;standard format;third-party vendor;certificate of destruction;regulatory;environmental",
+"2.10": "default password;IP filtering;firmware;content filtering;physical placement;UPnP;screened subnet;secure management access;SSID;disable SSID broadcast;encryption;guest access;unused ports;port forwarding",
+"2.11": "trusted sources;hashing;untrusted sources;patching;extensions;plug-ins;password manager;certificate;pop-up blocker;browsing data;cache;private-browsing;synchronization;ad blocker;proxy;secure DNS;feature management"
 }
 }

@@ -82,6 +82,7 @@
         var labs = [];
         o.parts.forEach(function (p) { if (p.lab && C.labs[p.lab] && labs.indexOf(p.lab) < 0) labs.push(p.lab); });
         if (o.wrap && o.wrap.lab && C.labs[o.wrap.lab] && labs.indexOf(o.wrap.lab) < 0) labs.push(o.wrap.lab);
+        (o.moreLabs || []).forEach(function (l) { if (C.labs[l] && labs.indexOf(l) < 0) labs.push(l); });
         var num = o.id.replace('.', '_'), sid = cfg.pfx + 'o' + num;
         out.push({ id: sid, track: cfg.track, tier: D.tier, dom: D.d, unit: U, obj: o.id, title: o.id + ' ' + o.short, long: o.title, goal: o.goal,
           code: (cfg.pfx + o.id.replace('.', '')).toUpperCase() + '-' + W1[ci % W1.length] + '-' + W2[(ci * 7 + 3) % W2.length],
