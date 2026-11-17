@@ -152,5 +152,7 @@ rep("o.qs.forEach(function (q) { if (q.d) pool.push(q); });",
 # 7) one-time carry-over of old progress (COURSE.migrate is set by RK.build)
 rep("  // ---------- boot ----------", "  if (C.migrate) { try { C.migrate(S, st); persist(); } catch (e) { } }\n  // ---------- boot ----------", name='boot')
 
+# skill tracks (unit 'Module') label their header chip "Module N" instead of "Domain N.0" (optional anchor)
+rep("""style="margin:0 6px 4px 0">Domain ' + esc(domLabel(d)) + '</span>'""", """style="margin:0 6px 4px 0">' + (s.unit === 'Module' ? 'Module ' + d : 'Domain ' + esc(domLabel(d))) + '</span>'""", required=False, name='unit chip')
 open(path, 'w', encoding='utf-8').write(s)
 print('patched:', path)
