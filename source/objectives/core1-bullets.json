@@ -19,6 +19,8 @@
 "3.5": "ATX;microATX;ITX;PCI;PCIe;power connector;SATA;eSATA;header;M.2;CPU socket;AMD;Intel;multisocket;boot options;USB permissions;Trusted Platform Module;fan considerations;Secure Boot;boot password;BIOS password;temperature monitoring;virtualization support;TPM;HSM;x86;x64;ARM;core;sound card;video card;capture card;NIC;fans;heat sink;thermal paste;liquid",
 "3.6": "110-120 VAC;220-240 VAC;3.3 V;5 V;12 V;20+4-pin;redundant power supply;modular power supply;wattage rating;energy efficiency",
 "3.7": "unbox;setup location;drivers;PCL;PostScript;firmware;USB;Ethernet;wireless;printer share;print server;duplex;orientation;tray settings;quality;user authentication;badging;audit logs;secured prints;email;SMB;cloud services;ADF;flatbed",
-"3.8": "laser;toner;maintenance kit;calibrate;clean;imaging process;inkjet;ink cartridge;printhead;roller;feeder;clear jams;thermal;feed assembly;special thermal paper;heating element;remove debris;impact;multipart paper;ribbon"
+"3.8": "laser;toner;maintenance kit;calibrate;clean;imaging process;inkjet;ink cartridge;printhead;roller;feeder;clear jams;thermal;feed assembly;special thermal paper;heating element;remove debris;impact;multipart paper;ribbon",
+"4.1": "sandbox;test development;application virtualization;legacy software;cross-platform virtualization;security;network;storage;VDI;container;Type 1;Type 2",
+"4.2": "private;public;hybrid;community;IaaS;SaaS;PaaS;shared;dedicated;metered utilization;ingress;egress;elasticity;availability;file synchronization;multitenancy"
 }
 }
