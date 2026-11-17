@@ -248,7 +248,7 @@ html,body{overflow-x:hidden}
 <body>
 <noscript>This study app needs JavaScript enabled.</noscript>
 <script>
-/* build acf3df30ab */
+/* build 1ebea68f30 */
 /* A+ Range — course definition (meta). Stages are appended by the a*.js (Core 1) and b*.js (Core 2) files. */
 window.Q = function (q, right, wrong, e, d) { return [q, [right].concat(wrong), 0, e, d]; };
 window.TYPE = function (q, accept, e, d, ph) { return { q: q, input: true, accept: accept, show: typeof accept[0] === 'string' ? accept[0] : undefined, e: e, d: d, ph: ph }; };
@@ -1809,6 +1809,1270 @@ window.X = {
 })();
 
 ;
+/* RangeKit v1 — shared helpers for "Domain → Objective → Part" consoles.
+   Load AFTER the course meta + old stage files and BEFORE the engine (app.js).
+   Content files call RK.add({...}) for each objective; rk-build (RK.build) turns them into stages.
+   See PLAYBOOK.md for the authoring rules. */
+(function () {
+  'use strict';
+  var RK = window.RK = window.RK || { objs: [], labs: {}, built: [] };
+
+  // ---------- lab helpers ----------
+  // match lab: options = one list of choices; items = [text, answer, why]
+  RK.M = function (id, title, sum, brief, options, items, debrief, hints) {
+    RK.labs[id] = { kind: 'match', title: title, sum: sum, brief: brief, options: options, min: 3,
+      items: items.map(function (i) { return { t: i[0], a: i[1], why: i[2] || '' }; }), debrief: debrief || '', hints: hints || [] };
+  };
+  // order lab: items listed in the CORRECT order = [text, why]
+  RK.O = function (id, title, sum, brief, items, debrief, hints) {
+    RK.labs[id] = { kind: 'order', title: title, sum: sum, brief: brief, min: 3,
+      items: items.map(function (i) { return { t: i[0], why: i[1] || '' }; }), debrief: debrief || '', hints: hints || [] };
+  };
+  // calc lab: fields = [label, numeric answer, shown answer, why]
+  RK.C = function (id, title, sum, brief, fields, debrief, hints, tol) {
+    RK.labs[id] = { kind: 'calc', title: title, sum: sum, brief: brief, tolPct: tol || 0, min: 4,
+      fields: fields.map(function (f) { return { label: f[0], a: f[1], show: f[2], why: f[3] || '' }; }), debrief: debrief || '', hints: hints || [] };
+  };
+  /* terminal lab: a scripted command line. env = { shell: 'cmd' | 'ps' | 'bash', prompt: 'C:\\Users\\tech>' }
+     tasks = [{ t: 'what to do (plain words — never the literal command)', accept: [/^regex$/i, ...], show: 'canonical command',
+                out: 'output printed on success', prompt: 'new prompt after this step (optional)',
+                ask: { q: 'question about the output', accept: ['answer', ...], why: '' } (optional), why: 'one-line takeaway' }] */
+  RK.T = function (id, title, sum, brief, env, tasks, debrief, hints) {
+    RK.labs[id] = { kind: 'term', title: title, sum: sum, brief: brief, env: env || {}, tasks: tasks, debrief: debrief || '', hints: hints || [],
+      min: Math.max(4, Math.min(12, 2 + tasks.length + tasks.filter(function (t) { return t.ask; }).length)) };
+  };
+  // part: h = title, obj = what you will be able to do, html = lesson, q = [[question, right, [wrong...], why], ...], lab = paired lab id
+  RK.P = function (h, obj, html, q, lab) { return { h: h, obj: obj, html: html, q: q || [], lab: lab || null }; };
+  RK.add = function (o) { RK.objs.push(o); };
+  RK.setWrap = function (track, id, lab) { RK.objs.forEach(function (o) { if (o.track === track && o.id === id) o.wrap.lab = lab; }); };
+  RK.cards = function (track, id, list) { RK.objs.forEach(function (o) { if (o.track === track && o.id === id) o.cards = (o.cards || []).concat(list); }); };
+  RK.extra = function (track, id, list) { RK.objs.forEach(function (o) { if (o.track === track && o.id === id) o.extra = (o.extra || []).concat(list); }); };
+
+  // ---------- build: objectives → stages ----------
+  var W1 = ['COPPER', 'SIGNAL', 'PACKET', 'BEACON', 'SWITCH', 'CIPHER', 'ROUTER', 'MATRIX', 'VECTOR', 'TOKEN', 'PRISM', 'ORBIT', 'RELAY', 'FALCON', 'HARBOR', 'ANCHOR', 'COMET', 'GLACIER', 'EMBER', 'TUNDRA', 'CANYON', 'MERIDIAN', 'QUASAR', 'NEBULA', 'SUMMIT', 'ZENITH', 'BASALT', 'CEDAR', 'MAGNET', 'PILOT'];
+  var W2 = ['LANTERN', 'RIVER', 'KESTREL', 'FORGE', 'HORIZON', 'GRANITE', 'BEARING', 'VALLEY', 'SPARROW', 'COMPASS', 'THUNDER', 'MARBLE', 'WILLOW', 'ARCHER', 'BRIDGE', 'CASCADE', 'DRIFT', 'FRONTIER', 'GARNET', 'HELIX', 'IVORY', 'JUNIPER', 'KEYSTONE', 'LOTUS', 'MOSAIC', 'NORTH', 'OASIS', 'PEBBLE', 'QUILL', 'RAVEN'];
+  function qText(q) { return Array.isArray(q) ? String(q[0]) + ' ' + String((q[1] || [])[q[2] || 0]) : String(q.q || '') + ' ' + String((q.accept || [])[0] || ''); }
+  function qDom(q) { return Array.isArray(q) ? q[4] : q.d; }
+  function setD(q, d) { if (Array.isArray(q)) { q = q.slice(); q[4] = d; return q; } var o = {}; for (var k in q) o[k] = q[k]; o.d = d; return o; }
+  function hits(re, text) { if (!re) return 0; var g = new RegExp(re.source, 'gi'), m = text.match(g); return m ? m.length : 0; }
+  function best(objs, text) { var bi = -1, bs = 0; objs.forEach(function (o, i) { var n = hits(o.kw, text); if (n > bs) { bs = n; bi = i; } }); return bi; }
+
+  /* cfg = { track: 'core2', pfx: 'c2', domains: [{ d: 1, tier: 'c2-os', name: 'Operating Systems', weight: 28, old: ['b1'], wrapLab: 'id', next: 'Domain 2' }] }
+     Only domains that have objectives registered for cfg.track are rebuilt, so you can roll out one domain at a time. */
+  RK.build = function (cfg) {
+    var C = window.COURSE, Q = window.Q;
+    Object.keys(RK.labs).forEach(function (k) { C.labs[k] = RK.labs[k]; });
+    var byId = {}; C.stages.forEach(function (s) { byId[s.id] = s; });
+    var newFor = {}, ci = 0, mig = [];
+    cfg.domains.forEach(function (D) {
+      var objs = RK.objs.filter(function (o) { return o.track === cfg.track && o.dom === D.d; });
+      if (!objs.length) return;
+      var oldQ = [], oldC = [];
+      (D.old || []).forEach(function (id) { var s = byId[id]; if (!s) return; (s.qs || []).forEach(function (q) { if (!D.strictDom || qDom(q) === D.d) oldQ.push(q); }); (s.cards || []).forEach(function (c) { oldC.push(c); }); });
+      var qFor = objs.map(function () { return []; }), cFor = objs.map(function () { return []; }), looseQ = [], looseC = [];
+      oldQ.forEach(function (q) { var i = best(objs, qText(q)); if (i < 0) looseQ.push(setD(q, D.d)); else qFor[i].push(setD(q, D.d)); });
+      oldC.forEach(function (c) { var i = best(objs, String(c[0]) + ' ' + String(c[1])); if (i < 0) looseC.push(c); else cFor[i].push(c); });
+      var out = [], domQs = [], recapParts = [], ids = [];
+      objs.forEach(function (o, oi) {
+        var qs = [];
+        o.parts.forEach(function (p) { p.qi = []; (p.q || []).forEach(function (qq) { p.qi.push(qs.length); qs.push(Q(qq[0], qq[1], qq[2], qq[3], D.d)); }); });
+        var nPart = qs.length;
+        (o.extra || []).forEach(function (qq) { qs.push(Q(qq[0], qq[1], qq[2], qq[3], D.d)); });
+        qs = qs.concat(qFor[oi]);
+        var labs = [];
+        o.parts.forEach(function (p) { if (p.lab && C.labs[p.lab] && labs.indexOf(p.lab) < 0) labs.push(p.lab); });
+        if (o.wrap && o.wrap.lab && C.labs[o.wrap.lab] && labs.indexOf(o.wrap.lab) < 0) labs.push(o.wrap.lab);
+        var num = o.id.replace('.', '_'), sid = cfg.pfx + 'o' + num;
+        out.push({ id: sid, track: cfg.track, tier: D.tier, dom: D.d, obj: o.id, title: o.id + ' ' + o.short, long: o.title, goal: o.goal,
+          code: (cfg.pfx + o.id.replace('.', '')).toUpperCase() + '-' + W1[ci % W1.length] + '-' + W2[(ci * 7 + 3) % W2.length],
+          parts: o.parts, wrap: o.wrap || { recap: [], lab: null }, qs: qs, cards: (o.cards || []).concat(cFor[oi]), labs: labs, gateN: Math.min(15, qs.length), partQ: nPart });
+        ci++; ids.push(sid);
+        var off = domQs.length; domQs = domQs.concat(qs);
+        recapParts.push({ h: o.id + ' ' + o.short + ' — recap', obj: 'Recall the key points of objective ' + o.id + ' without looking.', recapOf: o.id,
+          html: '<ul>' + ((o.wrap && o.wrap.recap) || []).map(function (r) { return '<li>' + r + '</li>'; }).join('') + '</ul>', q: [], qi: nPart >= 2 ? [off, off + 1] : [], lab: null });
+      });
+      domQs = domQs.concat(looseQ);
+      var wid = cfg.pfx + 'dw' + D.d;
+      out.push({ id: wid, track: cfg.track, tier: D.tier, dom: D.d, domWrap: true, title: 'Domain ' + D.d + ' wrap-up', long: 'Domain ' + D.d + '.0 ' + D.name + ' — wrap-up',
+        goal: 'Recap every objective in Domain ' + D.d + ', run the combined lab, then pass the 30-question domain test to open ' + (D.next || 'the next domain') + '.',
+        code: (cfg.pfx + 'D' + D.d + 'W').toUpperCase() + '-' + W1[(ci + 11) % W1.length] + '-' + W2[(ci * 5 + 1) % W2.length],
+        parts: recapParts, wrap: { recap: [], lab: D.wrapLab && C.labs[D.wrapLab] ? D.wrapLab : null }, qs: domQs, cards: looseC,
+        labs: D.wrapLab && C.labs[D.wrapLab] ? [D.wrapLab] : [], gateN: Math.min(30, domQs.length) });
+      ci++; ids.push(wid);
+      (D.old || []).forEach(function (id, k) { newFor[id] = k === 0 ? out : []; });
+      mig.push({ tier: D.tier, old: D.old || [], ids: ids });
+    });
+    var res = [];
+    C.stages.forEach(function (s) { if (newFor[s.id]) newFor[s.id].forEach(function (n) { res.push(n); }); else res.push(s); });
+    C.stages.length = 0; res.forEach(function (s) { C.stages.push(s); });
+    RK.built = RK.built.concat(mig);
+    // one-time carry-over, per domain: if an old stage for the domain was passed, the new objectives start unlocked ("carried")
+    C.migrate = function (S, st) {
+      S.mig = S.mig || {};
+      RK.built.forEach(function (m) {
+        if (S.mig[m.tier]) return; S.mig[m.tier] = 1;
+        var passed = m.old.length && m.old.every(function (id) { return S.stages[id] && S.stages[id].passed; });
+        if (passed) m.ids.forEach(function (id) { var x = st(id); x.passed = true; x.carried = true; x.best = x.best || 90; });
+      });
+    };
+  };
+
+  // ---------- terminal lab kind ----------
+  function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+  function notFound(shell, cmd) {
+    var w = cmd.split(/\s+/)[0];
+    if (shell === 'cmd') return "'" + w + "' is not recognized as an internal or external command,\noperable program or batch file.";
+    if (shell === 'ps') return w + " : The term '" + w + "' is not recognized as the name of a cmdlet, function, script file, or operable program.";
+    return 'bash: ' + w + ': command not found';
+  }
+  function renderTerm(m, L, api, fresh) {
+    var saved = fresh ? null : api.load(), env = L.env || {}, shell = env.shell || 'bash';
+    var i = saved && saved.i ? Math.min(saved.i, L.tasks.length) : 0, miss = 0, asking = false;
+    var prompt = env.prompt || (shell === 'cmd' ? 'C:\\Users\\tech>' : shell === 'ps' ? 'PS C:\\Users\\tech>' : 'tech@ubuntu:~$');
+    for (var k = 0; k < i; k++) { if (L.tasks[k].prompt) prompt = L.tasks[k].prompt; if (L.tasks[k].shell) shell = L.tasks[k].shell; }
+    var keys = shell === 'bash' ? ['-', '/', '|', '~', '.', '*', '>', '"', '$', '@'] : ['-', '/', '\\', '|', ':', '.', '*', '"', '$', '@'];
+    m.innerHTML = '<div class="row" style="margin-bottom:8px"><button class="btn sm ghost" data-go="' + api.back + '">← Back</button><span class="grow"></span>' +
+      (L.hints && L.hints.length ? '<button class="btn sm ghost" id="hint">Hint</button>' : '') + '<button class="btn sm warn" id="rst">Reset</button></div>' +
+      '<div class="tag">TERMINAL · HANDS-ON LAB · ' + esc(shell === 'cmd' ? 'Windows Command Prompt' : shell === 'ps' ? 'Windows PowerShell' : 'Linux shell') + '</div><h1 style="margin:4px 0 6px">' + esc(L.title) + '</h1>' +
+      '<div class="panel tight small" style="margin-bottom:10px">' + L.brief + '</div>' +
+      '<div class="panel tight" id="task" style="border-color:var(--acc);margin-bottom:10px"></div>' +
+      '<div style="background:#05080c;border:1px solid var(--line);border-radius:12px;overflow:hidden">' +
+      '<pre id="scr" style="margin:0;padding:10px 12px;min-height:150px;max-height:46vh;overflow:auto;white-space:pre-wrap;word-break:break-word;font:13px/1.45 var(--mono);color:#cfe3dc"></pre>' +
+      '<div style="display:flex;align-items:center;gap:6px;padding:8px 10px;border-top:1px solid var(--line);background:#0a0f15"><span id="pr" style="font:13px var(--mono);color:var(--acc);white-space:nowrap;max-width:45%;overflow:hidden;text-overflow:ellipsis"></span>' +
+      '<input id="cmd" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" style="flex:1;min-width:0;background:transparent;border:0;outline:0;color:#fff;font:14px var(--mono)" placeholder="type a command…">' +
+      '<button class="btn sm pri" id="run">Run</button></div>' +
+      '<div id="keys" style="display:flex;gap:4px;overflow-x:auto;padding:6px 8px;border-top:1px solid var(--line);background:#0a0f15">' + keys.map(function (c) { return '<button class="btn sm ghost" data-k="' + esc(c) + '" style="min-width:34px;font-family:var(--mono)">' + esc(c) + '</button>'; }).join('') + '</div></div>' +
+      '<div id="out" style="margin-top:10px"></div>' +
+      '<p class="dim small">Type the real command and press Enter (or Run). Type <b>help</b> if you are stuck. Commands are not shown in the task on purpose — recalling them is the skill.</p>';
+    var scr = m.querySelector('#scr'), inp = m.querySelector('#cmd'), taskBox = m.querySelector('#task'), out = m.querySelector('#out');
+    function print(t, color) { var s = document.createElement('span'); if (color) s.style.color = color; s.textContent = t + '\n'; scr.appendChild(s); scr.scrollTop = scr.scrollHeight; }
+    function drawTask() {
+      m.querySelector('#pr').textContent = prompt;
+      if (i >= L.tasks.length) { taskBox.innerHTML = '<span class="chip ok">✓ All ' + L.tasks.length + ' tasks complete</span>'; return; }
+      var t = L.tasks[i];
+      taskBox.innerHTML = '<div class="tag">Task ' + (i + 1) + ' of ' + L.tasks.length + '</div><div style="margin-top:4px">' + t.t + '</div>' +
+        (asking ? '<div style="margin-top:8px"><div class="small" style="color:var(--lock)">📖 Read the output: ' + t.ask.q + '</div><div class="row" style="gap:6px;margin-top:6px"><input id="ans" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" style="flex:1;min-width:0" placeholder="your answer"><button class="btn sm pri" id="ansb">Check</button></div><div id="ansr" class="small" style="margin-top:4px"></div></div>' : '') +
+        (miss >= 4 && !asking ? '<div class="small" style="margin-top:6px;color:var(--lock)">Answer: <code>' + esc(t.show || '') + '</code> — type it yourself to continue.</div>' : (miss >= 2 && !asking && t.hint ? '<div class="small muted" style="margin-top:6px">💡 ' + t.hint + '</div>' : ''));
+      if (asking) {
+        var ab = taskBox.querySelector('#ansb'), ai = taskBox.querySelector('#ans');
+        var chk = function () {
+          var v = ai.value.trim().toLowerCase().replace(/\s+/g, ' ');
+          var ok = t.ask.accept.some(function (a) { return a instanceof RegExp ? a.test(v) : String(a).toLowerCase() === v; });
+          if (ok) { asking = false; if (t.ask.why) print('# ' + t.ask.why, '#7dd3a8'); advance(); }
+          else taskBox.querySelector('#ansr').innerHTML = '<span style="color:var(--bad)">Not quite — look at the output again.</span>';
+        };
+        ab.onclick = chk; ai.onkeydown = function (e) { if (e.key === 'Enter') chk(); };
+      }
+    }
+    function advance() {
+      var t = L.tasks[i]; if (t.why) print('# ' + t.why, '#7dd3a8');
+      i++; miss = 0; api.save({ i: i });
+      if (i >= L.tasks.length) {
+        out.innerHTML = '<div class="explain"><b class="v" style="color:var(--ok)">Lab complete.</b><div>' + (L.debrief || '') + '</div></div>';
+        if (!api.done()) api.complete();
+      }
+      drawTask();
+    }
+    function run() {
+      var raw = inp.value; inp.value = ''; var cmd = raw.trim().replace(/\s+/g, ' ');
+      if (!cmd) return;
+      print(prompt + (/[>$#]$/.test(prompt) ? ' ' : '') + cmd, '#ffffff');
+      if (/^(cls|clear)$/i.test(cmd)) { scr.innerHTML = ''; return; }
+      if (i >= L.tasks.length) { print('(lab finished — Reset to run it again)', '#8aa'); return; }
+      var t = L.tasks[i];
+      if (/^(help|\?)$/i.test(cmd)) { print(t.hint ? 'Hint: ' + t.hint.replace(/<[^>]+>/g, '') : 'No hint for this task. Re-read the paired Learn part.', '#e8c66a'); return; }
+      if (asking) { print('(answer the question about the output above first)', '#e8c66a'); return; }
+      var ok = t.accept.some(function (re) { return re.test(cmd); });
+      if (ok) {
+        if (t.out) print(t.out);
+        if (t.prompt) prompt = t.prompt;
+        if (t.shell) shell = t.shell;
+        if (t.ask) { asking = true; drawTask(); var a = taskBox.querySelector('#ans'); if (a && !api.lite) a.focus(); } else advance();
+        return;
+      }
+      var other = null; L.tasks.forEach(function (o, k) { if (k !== i && !other && o.accept.some(function (re) { return re.test(cmd); })) other = o; });
+      if (other) { if (other.out) print(other.out); print('(that command works, but it is not what this task asks for)', '#e8c66a'); }
+      else if (t.near && t.near.some(function (n) { return n[0].test(cmd); })) { print(t.near.filter(function (n) { return n[0].test(cmd); })[0][1], '#e8c66a'); }
+      else print(notFound(shell, cmd), '#f2777a');
+      miss++; drawTask();
+    }
+    m.querySelector('#run').onclick = run;
+    inp.onkeydown = function (e) { if (e.key === 'Enter') { e.preventDefault(); run(); } };
+    m.querySelector('#keys').addEventListener('click', function (e) { var b = e.target.closest('[data-k]'); if (!b) return; var s = inp.selectionStart == null ? inp.value.length : inp.selectionStart; inp.value = inp.value.slice(0, s) + b.dataset.k + inp.value.slice(inp.selectionEnd == null ? s : inp.selectionEnd); inp.focus(); inp.selectionStart = inp.selectionEnd = s + 1; });
+    var hi = 0, h = m.querySelector('#hint');
+    if (h) h.onclick = function () { var k = Math.min(hi++, L.hints.length - 1); api.modal('<div class="tag">Hint ' + (k + 1) + ' of ' + L.hints.length + '</div><p>' + L.hints[k] + '</p><button class="btn" data-close>Got it</button>'); };
+    m.querySelector('#rst').onclick = function () { if (!confirm('Reset this lab?')) return; api.clear(); renderTerm(m, L, api, true); };
+    if (env.banner) print(env.banner, '#8aa');
+    if (i > 0 && i < L.tasks.length) print('(resumed at task ' + (i + 1) + ')', '#8aa');
+    if (i >= L.tasks.length) out.innerHTML = '<div class="explain"><b class="v" style="color:var(--ok)">Lab complete.</b><div>' + (L.debrief || '') + '</div></div>';
+    drawTask();
+  }
+  window.LAB_KINDS = window.LAB_KINDS || {};
+  window.LAB_KINDS.term = { render: function (m, L, api) { renderTerm(m, L, api, false); } };
+  // LAB_KINDS may be re-assigned by a later file; re-attach just before the engine boots
+  RK.attachKinds = function () { window.LAB_KINDS = window.LAB_KINDS || {}; if (!window.LAB_KINDS.term) window.LAB_KINDS.term = { render: function (m, L, api) { renderTerm(m, L, api, false); } }; };
+})();
+
+;
+/* A+ Core 2 (220-1202) — Domain 1.0 Operating Systems — objectives 1.1 to 1.6 */
+(function () {
+  var RK = window.RK, P = RK.P, M = RK.M, O = RK.O, T = RK.T, TR = 'core2';
+
+  // ===================== 1.1 OS types =====================
+  M('c2-os-pick', 'Pick the operating system', 'Workstation and mobile OS scenarios',
+    'Pick the operating system that best fits each description.', ['Windows', 'Linux', 'macOS', 'ChromeOS', 'iOS / iPadOS', 'Android'],
+    [['Runs most business software and joins Active Directory domains out of the box', 'Windows', 'The standard corporate desktop.'],
+     ['Free, open-source kernel sold as "distributions" such as Ubuntu and Fedora', 'Linux', 'Distros bundle the kernel with tools.'],
+     ['Runs only on Apple desktops and laptops', 'macOS', 'Apple hardware only.'],
+     ['Cheap school laptop that is mostly a web browser and stores work in the cloud', 'ChromeOS', 'Chromebooks.'],
+     ['Closed mobile OS; apps come only from Apple\'s App Store', 'iOS / iPadOS', 'Apple controls hardware and store.'],
+     ['Open-source mobile OS used by many phone makers, each adding its own skin', 'Android', 'Based on the Linux kernel.']],
+    'Windows, Linux, macOS and ChromeOS are workstation OSes. iOS, iPadOS and Android are mobile OSes.');
+  M('c2-fs-pick', 'Pick the filesystem', 'NTFS, ReFS, FAT32, exFAT, ext4, XFS, APFS',
+    'Pick the filesystem that fits each job.', ['NTFS', 'ReFS', 'FAT32', 'exFAT', 'ext4', 'XFS', 'APFS'],
+    [['Windows system drive that needs file permissions, encryption and compression', 'NTFS', 'The Windows default.'],
+     ['64 GB flash drive that must hold a 12 GB video and work on Windows and Mac', 'exFAT', 'No 4 GB file limit, cross-platform.'],
+     ['Tiny boot/firmware partition or a camera card that everything can read; files never exceed 4 GB', 'FAT32', 'Most compatible, 4 GB file limit.'],
+     ['Default filesystem on Ubuntu and most Linux distributions', 'ext4', 'Journaling Linux filesystem.'],
+     ['Default on Red Hat Enterprise Linux; built for very large files and volumes', 'XFS', 'High-performance journaling filesystem.'],
+     ['Default on modern Macs; optimized for SSDs with snapshots and encryption', 'APFS', 'Apple File System.'],
+     ['Windows Server storage pool that must detect and repair corruption automatically', 'ReFS', 'Resilient File System.']],
+    'Exam shortcut: Windows = NTFS, big-file flash drive = exFAT, 4 GB limit = FAT32, Linux = ext4 (XFS on RHEL), Mac = APFS, self-healing Windows storage = ReFS.');
+  M('c2-os11-wrap', 'OS and filesystem help desk', 'Combined 1.1 scenarios',
+    'Each line is a help-desk ticket. Pick the best answer.', ['End-of-life OS', 'Format as exFAT', 'Format as NTFS', 'Filesystem not supported by this OS', 'Hardware cannot run the new OS', 'App is not available for that OS'],
+    [['A PC runs an OS version that no longer gets security patches', 'End-of-life OS', 'EOL = no more fixes; replace or upgrade.'],
+     ['User cannot copy a 6 GB file to a FAT32 flash drive', 'Format as exFAT', 'FAT32 tops out at 4 GB per file.'],
+     ['A shared Windows data drive needs per-user permissions', 'Format as NTFS', 'FAT32/exFAT have no file permissions.'],
+     ['A Mac-formatted (APFS) external drive shows as "unallocated/unknown" on Windows', 'Filesystem not supported by this OS', 'Windows cannot read APFS natively.'],
+     ['A 2015 laptop without TPM 2.0 is refused the Windows 11 upgrade', 'Hardware cannot run the new OS', 'Vendor update limitation.'],
+     ['A designer moving from Mac to Windows cannot find Final Cut Pro', 'App is not available for that OS', 'Compatibility concern between OSes.']],
+    'Most "it will not open / will not copy / will not install" tickets come down to OS, filesystem, or life-cycle compatibility.');
+
+  RK.add({ track: TR, id: '1.1', dom: 1, short: 'OS types & filesystems', title: 'Explain common operating system (OS) types and their purposes',
+    goal: 'Know what each workstation and mobile OS is for, which filesystem goes with which OS, and why end-of-life and compatibility matter.',
+    kw: /\b(ntfs|refs|fat32|exfat|ext4|xfs|apfs|file ?system|chrome ?os|chromebook|ipados|\bios\b|android|end.of.life|\beol\b|workstation os|open.source|operating system type|compatibility between)/,
+    parts: [
+      P('Workstation and mobile operating systems', 'Name the four workstation OSes and three mobile OSes on the exam and say what each is used for.',
+        `<p>An <b>operating system (OS)</b> is the software that runs the hardware and lets you start apps. A+ wants you to recognize seven of them.</p>
+<table><tr><th>OS</th><th>Runs on</th><th>Known for</th></tr>
+<tr><td><b>Windows</b></td><td>PCs from many makers</td><td>Business standard; joins company domains; most software and games</td></tr>
+<tr><td><b>Linux</b></td><td>Almost anything</td><td>Free and open source; comes as <i>distributions</i> (Ubuntu, Fedora, Mint); runs most servers</td></tr>
+<tr><td><b>macOS</b></td><td>Apple Macs only</td><td>Creative work; tight Apple ecosystem</td></tr>
+<tr><td><b>ChromeOS</b></td><td>Chromebooks</td><td>Cheap, simple, web-first; popular in schools</td></tr>
+<tr><td><b>iOS / iPadOS</b></td><td>iPhone / iPad</td><td>Closed system; apps only from the App Store</td></tr>
+<tr><td><b>Android</b></td><td>Phones and tablets from many makers</td><td>Open source; based on the Linux kernel</td></tr></table>
+<p><b>Workstation OS</b> = desktops and laptops. <b>Mobile OS</b> = phones and tablets, built for touch, battery life and cellular radios.</p>
+<div class="callout pro"><b class="k">On the job</b> The first question on almost every ticket is "What device and OS version are you on?" The fix for the same problem is different on every row of this table.</div>`,
+        [['Which OS is open source and distributed as "distros" such as Ubuntu?', 'Linux', ['macOS', 'Windows', 'iPadOS'], 'Linux distributions bundle the Linux kernel with tools and a desktop.'],
+         ['A school wants low-cost laptops that mostly run a browser and web apps. Which OS fits?', 'ChromeOS', ['macOS', 'Windows Enterprise', 'iOS'], 'Chromebooks are web-first and cheap to manage.']],
+        'c2-os-pick'),
+      P('Filesystems', 'Match NTFS, ReFS, FAT32, exFAT, ext4, XFS and APFS to the OS and job each one fits.',
+        `<p>A <b>filesystem</b> is how a drive organizes files. The OS must understand the filesystem or the drive looks empty or "unformatted."</p>
+<table><tr><th>Filesystem</th><th>Home</th><th>Remember</th></tr>
+<tr><td><b>NTFS</b></td><td>Windows</td><td>Default for Windows drives. Permissions, encryption (EFS), compression, journaling, huge files.</td></tr>
+<tr><td><b>ReFS</b></td><td>Windows (servers, Pro for Workstations)</td><td><i>Resilient</i>: detects and repairs corruption. For large storage, not everyday boot drives.</td></tr>
+<tr><td><b>FAT32</b></td><td>Everything</td><td>Most compatible. <b>Max file size 4 GB.</b> No permissions.</td></tr>
+<tr><td><b>exFAT</b></td><td>Flash drives, SD cards</td><td>FAT32 without the 4 GB limit. Works on Windows, macOS and Linux.</td></tr>
+<tr><td><b>ext4</b></td><td>Linux</td><td>Default on most distros. Journaling.</td></tr>
+<tr><td><b>XFS</b></td><td>Linux (Red Hat)</td><td>Very large files and volumes; high performance.</td></tr>
+<tr><td><b>APFS</b></td><td>macOS / iOS</td><td>Built for SSDs: snapshots, cloning, strong encryption.</td></tr></table>
+<p><b>Journaling</b> means the filesystem keeps a log of changes, so a crash or power cut is far less likely to corrupt it.</p>`,
+        [['A user cannot copy a 5 GB file to a flash drive. Which filesystem is the drive most likely using?', 'FAT32', ['NTFS', 'exFAT', 'APFS'], 'FAT32 cannot store a single file larger than 4 GB.'],
+         ['Which filesystem is the default for a Windows system drive?', 'NTFS', ['FAT32', 'ext4', 'ReFS'], 'NTFS supports permissions, encryption and large files.']],
+        'c2-fs-pick'),
+      P('Life cycle and compatibility', 'Explain end-of-life, update limitations, and why files or apps may not move between OSes.',
+        `<p>Vendors do not support an OS forever.</p>
+<ul><li><b>End of life (EOL)</b> — the vendor stops releasing security patches. An EOL system gets more dangerous every month. The fix is to upgrade or replace it; if it truly must stay, isolate it from the network.</li>
+<li><b>Update limitations</b> — older hardware may not be allowed to run a newer OS. Example: Windows 11 needs TPM 2.0 and UEFI; many older PCs fail that check. Phones stop getting OS updates after a set number of years.</li></ul>
+<p><b>Compatibility concerns between OSes:</b></p>
+<ul><li><b>Apps</b> — a Windows .exe will not run on macOS, and a Mac app will not run on Windows, without virtualization or a different version of the app.</li>
+<li><b>Filesystems</b> — Windows cannot read APFS or ext4 on its own; macOS reads NTFS but cannot write to it by default. For a drive shared between them, use <b>exFAT</b>.</li>
+<li><b>File formats</b> — most documents open across OSes, but fonts, macros and special formats may not.</li></ul>
+<div class="callout trap"><b class="k">Exam trap</b> "The software still works" is not a reason to keep an EOL OS. The exam answer is to upgrade/replace because it no longer receives security updates.</div>`,
+        [['What is the main risk of running an operating system that has reached end of life?', 'It no longer receives security updates', ['It runs slower every day', 'It cannot connect to Wi-Fi', 'Its license becomes illegal'], 'No patches means every new vulnerability stays open.'],
+         ['Which filesystem is the best choice for an external drive used on both Windows and macOS?', 'exFAT', ['NTFS', 'APFS', 'ext4'], 'Both OSes can read and write exFAT, and it has no 4 GB limit.']])
+    ],
+    wrap: { recap: ['Workstation OSes: Windows, Linux, macOS, ChromeOS. Mobile OSes: iOS, iPadOS, Android.', 'NTFS = Windows default (permissions, encryption). ReFS = resilient Windows storage.', 'FAT32 = most compatible, 4 GB file limit. exFAT = big files, cross-platform.', 'ext4 = Linux default; XFS = Red Hat, huge files. APFS = Apple, SSD-optimized.', 'EOL = no more security patches → upgrade, replace or isolate.', 'Apps, filesystems and some file formats do not move freely between OSes.'], lab: 'c2-os11-wrap' }
+  });
+
+  // ===================== 1.2 OS installations =====================
+  M('c2-boot', 'Boot method and install type', 'Pick the right way to install',
+    'Pick the boot method or installation type for each situation.', ['USB boot', 'Network boot (PXE)', 'Clean install', 'In-place upgrade', 'Image deployment', 'Zero-touch deployment', 'Repair installation', 'Recovery partition', 'Multiboot'],
+    [['One PC, no OS, and you have an installer flash drive', 'USB boot', 'The most common method.'],
+     ['200 lab PCs should start setup from a server with no media in each PC', 'Network boot (PXE)', 'PXE boots from the network card.'],
+     ['PC is badly infected; wipe everything and start fresh', 'Clean install', 'Erases the drive; nothing carries over.'],
+     ['Move a working Windows 10 PC to Windows 11 and keep apps, files and settings', 'In-place upgrade', 'Runs setup from inside the current OS.'],
+     ['Copy one prepared PC setup (OS + apps + settings) to 50 identical PCs', 'Image deployment', 'One golden image, many PCs.'],
+     ['New laptop ships straight to a remote worker and configures itself at first sign-in', 'Zero-touch deployment', 'IT never touches the device.'],
+     ['Windows files are corrupted; reinstall Windows over itself and keep apps and data', 'Repair installation', 'Fixes the OS, keeps the rest.'],
+     ['Reset a laptop to factory state using the hidden vendor copy on its own drive', 'Recovery partition', 'No external media needed.'],
+     ['A developer needs to choose Windows or Linux each time the PC starts', 'Multiboot', 'Two OSes, one PC, pick at boot.']],
+    'Clean = wipe. Upgrade = keep. Image = clone. Zero-touch = cloud-configured. Repair = fix the OS in place.');
+  M('c2-part', 'MBR or GPT?', 'Partition styles',
+    'Pick MBR or GPT for each fact.', ['MBR', 'GPT'],
+    [['Maximum disk size of 2 TB', 'MBR', '32-bit sector addresses.'],
+     ['Required to boot Windows 11 (UEFI)', 'GPT', 'UEFI boots from GPT.'],
+     ['Limited to 4 primary partitions', 'MBR', 'Or 3 primary + 1 extended.'],
+     ['Supports up to 128 partitions in Windows', 'GPT', 'No extended partitions needed.'],
+     ['Keeps a backup copy of the partition table at the end of the disk', 'GPT', 'More resilient.'],
+     ['Older style used with legacy BIOS', 'MBR', 'Master Boot Record.'],
+     ['Needed to use the whole of a 4 TB drive', 'GPT', 'MBR stops at 2 TB.']],
+    'Modern PCs: UEFI + GPT. Legacy: BIOS + MBR. A 2 TB ceiling or a 4-partition limit in a question means MBR.');
+  O('c2-clean', 'Clean install, start to finish', 'Order the steps',
+    'You are doing a clean install of Windows 11 on a used PC. Put the steps in a sensible order.',
+    [['Back up the user\'s files and note licensed apps', 'A clean install erases everything.'],
+     ['Check the hardware meets the requirements (TPM 2.0, UEFI, RAM, storage)', 'No point starting if it cannot run.'],
+     ['Boot from the installer USB (change boot order or use the boot menu)', 'Start setup from media.'],
+     ['Load a third-party storage driver if the drive is not detected', 'RAID/NVMe controllers sometimes need one.'],
+     ['Delete old partitions, create new ones (GPT) and format', 'Partition and format.'],
+     ['Let setup copy files, then finish the first-run setup (account, region)', 'Install and out-of-box experience.'],
+     ['Install drivers and Windows updates', 'Patch before restoring data.'],
+     ['Restore the user\'s files and reinstall apps', 'Last step.']],
+    'Back up first, verify, install, patch, restore. On the exam, "back up user data" is nearly always the first step before any install or upgrade.');
+
+  RK.add({ track: TR, id: '1.2', dom: 1, short: 'OS installations & upgrades', title: 'Given a scenario, perform OS installations and upgrades in a diverse environment',
+    goal: 'Choose a boot method and installation type, partition a drive (MBR vs GPT), and plan an upgrade without losing data.',
+    kw: /\b(pxe|network boot|boot method|clean install|in-place|image deployment|zero.touch|recovery partition|repair install|multiboot|dual.boot|\bgpt\b|\bmbr\b|partition|unattended|upgrade path|third.party driver|feature update|installation media|bootable usb)/,
+    parts: [
+      P('Boot methods', 'Choose how to start an OS installer: USB, network, internal partition, external drive or internet.',
+        `<p>To install an OS, the PC must first <b>boot</b> (start) from something that holds the installer. You pick this in the firmware <b>boot order</b> or a one-time <b>boot menu</b> (often F12, F9 or Esc).</p>
+<ul><li><b>USB</b> — a bootable flash drive. The everyday method.</li>
+<li><b>Network (PXE)</b> — the network card downloads the installer from a server. Great for many PCs at once; no media per machine.</li>
+<li><b>Solid-state / flash</b> — any flash media, such as an SD card or SSD.</li>
+<li><b>Internet-based</b> — the firmware downloads the installer from the vendor (for example macOS Internet Recovery).</li>
+<li><b>External / hot-swappable drive</b> — an external SSD/HDD in a dock or over USB/eSATA.</li>
+<li><b>Internal hard drive (partition)</b> — a hidden <b>recovery partition</b> on the PC's own drive that holds a factory copy.</li>
+<li><b>Multiboot</b> — more than one OS installed; a boot menu lets you choose each time.</li></ul>
+<div class="callout pro"><b class="k">On the job</b> If a PC ignores your USB installer, check three things: the boot order, whether USB boot is allowed in firmware, and whether Secure Boot is blocking unsigned media.</div>`,
+        [['Which boot method installs an OS on many PCs from a server without any media in each PC?', 'Network boot (PXE)', ['USB boot', 'Recovery partition', 'Multiboot'], 'PXE lets the network card load the installer.'],
+         ['A laptop is reset to factory condition with no USB drive or download. What was used?', 'An internal recovery partition', ['PXE', 'Internet-based boot', 'An external hot-swappable drive'], 'The factory image lives on a hidden partition.']]),
+      P('Installation types', 'Tell clean install, upgrade, image deployment, zero-touch, repair and recovery installs apart.',
+        `<table><tr><th>Type</th><th>What happens</th><th>Use it when</th></tr>
+<tr><td><b>Clean install</b></td><td>Drive is wiped; fresh OS</td><td>New drive, malware, a fresh start</td></tr>
+<tr><td><b>Upgrade (in-place)</b></td><td>New OS installs over the old one; apps, files and settings stay</td><td>Moving a healthy PC to a newer version</td></tr>
+<tr><td><b>Image deployment</b></td><td>A prepared image (OS + apps + settings) is copied to many PCs</td><td>Rolling out identical machines</td></tr>
+<tr><td><b>Remote network installation</b></td><td>Installer is pushed or pulled over the network</td><td>No one on site; many PCs</td></tr>
+<tr><td><b>Zero-touch deployment</b></td><td>Device configures itself from the cloud at first sign-in</td><td>Shipping laptops straight to users</td></tr>
+<tr><td><b>Recovery partition</b></td><td>Restores the factory image stored on the drive</td><td>Quick factory reset</td></tr>
+<tr><td><b>Repair installation</b></td><td>Reinstalls OS files over themselves; keeps apps and data</td><td>Corrupted system files</td></tr></table>
+<p><b>Third-party drivers:</b> if the installer cannot see your drive, the storage controller (RAID or a new NVMe chipset) needs a driver. Click <i>Load driver</i> during setup and supply it from USB.</p>`,
+        [['Which installation type keeps the user\'s applications, files and settings?', 'In-place upgrade', ['Clean install', 'Image deployment', 'Recovery partition reset'], 'An upgrade installs over the existing OS.'],
+         ['Windows setup shows no drives to install to on a new RAID workstation. What should you do?', 'Load the third-party storage driver', ['Convert the disk to MBR', 'Disable the TPM', 'Use a recovery partition'], 'The installer needs a driver for that controller.']],
+        'c2-boot'),
+      P('Partitioning and formatting', 'Choose MBR or GPT and explain what formatting does.',
+        `<p>A new drive must be <b>partitioned</b> (divided into sections) and then <b>formatted</b> (given a filesystem).</p>
+<table><tr><th></th><th>MBR</th><th>GPT</th></tr>
+<tr><td>Full name</td><td>Master Boot Record</td><td>GUID Partition Table</td></tr>
+<tr><td>Max disk size</td><td><b>2 TB</b></td><td>Far larger (zettabytes)</td></tr>
+<tr><td>Partitions</td><td><b>4 primary</b> (or 3 + 1 extended)</td><td><b>128</b> in Windows</td></tr>
+<tr><td>Firmware</td><td>Legacy BIOS</td><td><b>UEFI</b></td></tr>
+<tr><td>Safety</td><td>One copy of the table</td><td>Backup copy + checksums</td></tr></table>
+<p>Windows 11 requires UEFI, so its boot drive is <b>GPT</b>.</p>
+<p><b>Formatting</b> writes a new, empty filesystem:</p>
+<ul><li><b>Quick format</b> — creates a new file table only. Fast. Old data is still recoverable.</li>
+<li><b>Full format</b> — also scans for bad sectors (and on modern Windows writes zeros). Slow.</li></ul>
+<div class="callout trap"><b class="k">Exam trap</b> "Only 2 TB of my 4 TB drive is usable" → the disk is MBR. Convert it to GPT.</div>`,
+        [['A 4 TB drive shows only 2 TB of usable space in Disk Management. Why?', 'It was initialized as MBR', ['It was formatted as exFAT', 'It needs a full format', 'The TPM is disabled'], 'MBR cannot address more than 2 TB.'],
+         ['Which partition style does a UEFI system use to boot Windows 11?', 'GPT', ['MBR', 'FAT32', 'APFS'], 'UEFI boots from GPT disks.']],
+        'c2-part'),
+      P('Upgrade considerations and life cycle', 'Plan an OS upgrade: backups, compatibility, feature updates.',
+        `<p>Before any upgrade, answer four questions:</p>
+<ol><li><b>Is the data backed up?</b> Back up files and user preferences first. Always.</li>
+<li><b>Will the apps and drivers work?</b> Check application and driver support and backward compatibility. An old printer or accounting package may not have a version for the new OS.</li>
+<li><b>Does the hardware qualify?</b> Check CPU, RAM, storage, TPM and firmware against the vendor's requirements.</li>
+<li><b>Is there a supported upgrade path?</b> Some jumps (edition or 32-bit → 64-bit) need a clean install.</li></ol>
+<p><b>Feature updates and product life cycle:</b></p>
+<ul><li><b>Quality updates</b> — monthly security and bug fixes.</li>
+<li><b>Feature updates</b> — the big version releases (for example 23H2 → 24H2). Each version is only supported for a limited time, so PCs must keep moving forward to stay patched.</li></ul>
+<div class="callout pro"><b class="k">On the job</b> Test the upgrade on one or two pilot machines before rolling it out. It is how you find the one app that breaks.</div>`,
+        [['What should a technician do FIRST before upgrading a user\'s operating system?', 'Back up the user\'s files and settings', ['Format the drive', 'Install the newest drivers', 'Disable the firewall'], 'Protect the data before anything else.'],
+         ['Which update type delivers a new Windows version such as 24H2?', 'Feature update', ['Quality update', 'Driver update', 'Definition update'], 'Feature updates are the large version releases.']],
+        'c2-clean')
+    ],
+    wrap: { recap: ['Boot methods: USB, network (PXE), flash, internet, external drive, internal recovery partition, multiboot.', 'Clean = wipe. Upgrade = keep apps/files/settings. Image = clone to many. Zero-touch = self-configures from the cloud.', 'Repair install fixes OS files and keeps data; recovery partition = factory reset.', 'Drive not seen during setup → load the third-party storage driver.', 'MBR: 2 TB, 4 primary partitions, BIOS. GPT: huge, 128 partitions, UEFI, backup table.', 'Before upgrading: back up, check app/driver support, check hardware, confirm the upgrade path.'], lab: 'c2-clean' }
+  });
+
+  // ===================== 1.3 Windows editions =====================
+  M('c2-ed', 'Which edition do they need?', 'Home, Pro, Pro for Workstations, Enterprise',
+    'Pick the <b>lowest</b> Windows edition that meets each need.', ['Home', 'Pro', 'Pro for Workstations', 'Enterprise'],
+    [['Family PC for web, email and games', 'Home', 'No business features needed.'],
+     ['Office PC that must join the company Active Directory domain', 'Pro', 'Home cannot join a domain.'],
+     ['Staff need to connect <i>to</i> this PC with Remote Desktop', 'Pro', 'Home can only be an RDP client.'],
+     ['Laptop must be encrypted with BitLocker and managed with gpedit.msc', 'Pro', 'Both are Pro features.'],
+     ['3D rendering workstation with 4 CPUs and 3 TB of RAM', 'Pro for Workstations', 'High-end hardware support, ReFS.'],
+     ['Large company buying volume licenses with advanced security and management', 'Enterprise', 'Volume licensing only.']],
+    'Home = consumers. Pro = business basics (domain, RDP host, BitLocker, Group Policy). Pro for Workstations = extreme hardware. Enterprise = volume-licensed, most features.');
+  M('c2-w11', 'Will it run Windows 11?', 'Check each PC against the requirements',
+    'Decide whether each PC can be upgraded to Windows 11.', ['Yes — meets the requirements', 'No — TPM 2.0 missing', 'No — legacy BIOS only (no UEFI/Secure Boot)', 'No — not enough RAM', 'No — 32-bit CPU'],
+    [['64-bit CPU, 8 GB RAM, 256 GB SSD, UEFI with Secure Boot, TPM 2.0', 'Yes — meets the requirements', 'Everything checks out.'],
+     ['64-bit CPU, 16 GB RAM, UEFI, TPM 1.2', 'No — TPM 2.0 missing', 'Version 2.0 is required.'],
+     ['64-bit CPU, 8 GB RAM, TPM 2.0 module, firmware is legacy BIOS with an MBR disk', 'No — legacy BIOS only (no UEFI/Secure Boot)', 'Needs UEFI and Secure Boot capability.'],
+     ['64-bit CPU, 2 GB RAM, UEFI, TPM 2.0', 'No — not enough RAM', 'Minimum is 4 GB.'],
+     ['32-bit only processor, 4 GB RAM', 'No — 32-bit CPU', 'Windows 11 is 64-bit only.']],
+    'Windows 11 minimums: 64-bit CPU (1 GHz, 2+ cores), 4 GB RAM, 64 GB storage, UEFI with Secure Boot, TPM 2.0.');
+
+  RK.add({ track: TR, id: '1.3', dom: 1, short: 'Windows editions', title: 'Compare and contrast basic features of Microsoft Windows editions',
+    goal: 'Pick the right Windows 10/11 edition from its features, and know the Windows 11 hardware requirements and upgrade paths.',
+    kw: /\b(home edition|windows (10|11) (home|pro|enterprise)|pro for workstations|\bn version|edition|domain vs\.? workgroup|ram (support )?limit|gpedit|tpm 2|windows 11 (hardware )?requirement|upgrade path)/,
+    parts: [
+      P('The editions', 'List the Windows 10 and Windows 11 editions and who each one is for.',
+        `<table><tr><th>Edition</th><th>Windows 10</th><th>Windows 11</th><th>Who it is for</th></tr>
+<tr><td><b>Home</b></td><td>✓</td><td>✓</td><td>Consumers</td></tr>
+<tr><td><b>Pro</b></td><td>✓</td><td>✓</td><td>Small and mid-size business</td></tr>
+<tr><td><b>Pro for Workstations</b></td><td>✓</td><td>(objective lists it under 10)</td><td>High-end workstations: up to 4 CPUs, 6 TB RAM, ReFS</td></tr>
+<tr><td><b>Enterprise</b></td><td>✓</td><td>✓</td><td>Large organizations; volume licensing; extra security and management</td></tr></table>
+<p><b>N versions</b> — editions sold without media features (Windows Media Player and related codecs), created to satisfy European regulations. Everything else is the same; the media pack can be added later.</p>
+<p>Think of the editions as a ladder: each step up keeps everything below it and adds more business features.</p>`,
+        [['What is missing from an "N" edition of Windows?', 'Media features such as Windows Media Player', ['Networking', 'The Microsoft Store', 'BitLocker'], 'N editions omit media technologies.'],
+         ['Which edition is available only through volume licensing for large organizations?', 'Enterprise', ['Home', 'Pro', 'Pro N'], 'Enterprise is not sold at retail.']]),
+      P('Feature differences', 'Choose an edition based on domain join, Remote Desktop, RAM limits, BitLocker and gpedit.msc.',
+        `<table><tr><th>Feature</th><th>Home</th><th>Pro and above</th></tr>
+<tr><td>Join an Active Directory <b>domain</b></td><td>✗ (workgroup only)</td><td>✓</td></tr>
+<tr><td><b>Remote Desktop</b> host (others connect <i>to</i> it)</td><td>✗ (client only)</td><td>✓</td></tr>
+<tr><td><b>BitLocker</b> drive encryption</td><td>✗ (basic "device encryption" on some PCs)</td><td>✓</td></tr>
+<tr><td><b>gpedit.msc</b> (Local Group Policy Editor)</td><td>✗</td><td>✓</td></tr>
+<tr><td>Maximum RAM (64-bit)</td><td>128 GB</td><td>Pro 2 TB · Pro for Workstations / Enterprise 6 TB</td></tr></table>
+<ul><li><b>Workgroup</b> — a small peer-to-peer group; each PC keeps its own accounts.</li>
+<li><b>Domain</b> — accounts and policies are managed centrally by a server (Active Directory).</li>
+<li><b>Desktop styles/user interface</b> — Windows 10 has a left-aligned Start menu with live tiles; Windows 11 centers the taskbar and uses a simpler Start menu.</li></ul>
+<div class="callout trap"><b class="k">Exam trap</b> "User cannot join the domain" or "cannot find gpedit.msc" on a new retail laptop → it is running <b>Home</b>. Upgrade the edition to Pro.</div>`,
+        [['A user cannot find gpedit.msc on a new laptop. What is the most likely reason?', 'The laptop runs Windows Home', ['The laptop needs a TPM', 'The user is not an administrator', 'Windows needs activation'], 'Group Policy Editor is not included in Home.'],
+         ['Which is the lowest edition that lets other people remote into the PC with RDP?', 'Pro', ['Home', 'Enterprise', 'Pro for Workstations'], 'Home can connect out, but cannot host RDP.']],
+        'c2-ed'),
+      P('Upgrade paths and hardware requirements', 'Decide between in-place upgrade and clean install, and check Windows 11 hardware requirements.',
+        `<p><b>Upgrade paths:</b></p>
+<ul><li><b>In-place upgrade</b> — keeps apps, files and settings. Works when moving up in the same family: Windows 10 Home → Windows 11 Home, or Home → Pro with a new key.</li>
+<li><b>Clean install</b> — needed when no path exists: 32-bit → 64-bit, moving <i>down</i> an edition, or very old versions.</li></ul>
+<p><b>Windows 11 hardware requirements</b> (memorize):</p>
+<table><tr><th>Item</th><th>Minimum</th></tr>
+<tr><td>Processor</td><td>64-bit, 1 GHz, 2 or more cores (on the supported list)</td></tr>
+<tr><td>RAM</td><td>4 GB</td></tr><tr><td>Storage</td><td>64 GB</td></tr>
+<tr><td>Firmware</td><td><b>UEFI</b>, Secure Boot capable</td></tr>
+<tr><td>Security chip</td><td><b>TPM 2.0</b></td></tr></table>
+<p>A <b>TPM</b> (Trusted Platform Module) is a chip that safely stores encryption keys. It is often present but switched off in firmware; enabling it there fixes many "This PC can't run Windows 11" messages.</p>`,
+        [['A PC fails the Windows 11 check although it is only three years old. What should you look at first?', 'Whether TPM 2.0 and Secure Boot are enabled in UEFI', ['Whether the drive is NTFS', 'Whether it runs Home edition', 'Whether it has a DVD drive'], 'They are often present but disabled in firmware.'],
+         ['Which move requires a clean install rather than an in-place upgrade?', '32-bit Windows 10 to 64-bit Windows 11', ['Windows 10 Home to Windows 11 Home', 'Windows 11 Home to Windows 11 Pro', 'Windows 10 Pro to Windows 11 Pro'], 'You cannot upgrade in place across architectures.']],
+        'c2-w11')
+    ],
+    wrap: { recap: ['Windows 10: Home, Pro, Pro for Workstations, Enterprise. Windows 11: Home, Pro, Enterprise. N = no media features.', 'Home: no domain join, no RDP host, no BitLocker, no gpedit.msc, 128 GB RAM.', 'Pro adds all four; Pro 2 TB RAM; Pro for Workstations / Enterprise 6 TB.', 'Workgroup = each PC has its own accounts. Domain = central accounts and policy.', 'In-place upgrade keeps everything; clean install when no path (32→64-bit, downgrade).', 'Windows 11: 64-bit 2-core CPU, 4 GB RAM, 64 GB storage, UEFI + Secure Boot, TPM 2.0.'], lab: 'c2-ed' }
+  });
+
+  // ===================== 1.4 Windows features & tools =====================
+  M('c2-tm', 'Which Task Manager tab?', 'Processes, Performance, Startup, Users, Services',
+    'Pick the Task Manager tab you would open.', ['Processes', 'Performance', 'Startup', 'Users', 'Services', 'Details'],
+    [['End a frozen application', 'Processes', 'Select it → End task.'],
+     ['See live graphs of CPU, memory, disk, network and GPU use', 'Performance', 'Also links to Resource Monitor.'],
+     ['Stop a program launching every time Windows boots', 'Startup', 'Disable it; note the Startup impact column.'],
+     ['See who else is signed in to this PC and sign them out', 'Users', 'Shows each user\'s resource use.'],
+     ['Restart the Print Spooler', 'Services', 'Right-click → Restart.'],
+     ['Find a process ID (PID) or set a process priority', 'Details', 'The advanced process list.']],
+    'Open Task Manager with Ctrl+Shift+Esc. Frozen app → Processes. Slow boot → Startup. Graphs → Performance.');
+  T('c2-run', 'Open the right tool', 'Launch Windows tools by their run names',
+    'A real tech opens tools from the keyboard, not by hunting through menus. For each ticket, type the <b>run name</b> of the correct tool (for example the kind of name that ends in <code>.msc</code>).',
+    { shell: 'cmd', prompt: 'C:\\Users\\tech>' },
+    [{ t: 'A user says an app crashed at 9:14 this morning. Open the tool that shows the Application and System <b>logs</b>.', accept: [/^eventvwr(\.msc|\.exe)?$/i], show: 'eventvwr.msc', hint: 'Event Viewer. Its run name starts with "event".', out: '[Event Viewer opened]\nWindows Logs > Application\n  Error   9:14:07 AM  Application Error   Event ID 1000\n  Faulting application name: acctpro.exe', why: 'eventvwr.msc = Event Viewer. Event ID 1000 = an application crash.', ask: { q: 'What is the Event ID of the crash?', accept: ['1000'], why: 'Search the Event ID plus the faulting app name to find known fixes.' } },
+     { t: 'A new second drive does not show up in File Explorer. Open the tool where you initialize, partition and format disks.', accept: [/^diskmgmt(\.msc)?$/i], show: 'diskmgmt.msc', hint: 'Disk Management: "diskmgmt".', out: '[Disk Management opened]\nDisk 0  Basic  476.92 GB  Online   (C:) NTFS  Healthy (Boot)\nDisk 1  Unknown  931.51 GB  Not Initialized   Unallocated', why: 'diskmgmt.msc = Disk Management. "Not Initialized / Unallocated" means the disk needs initializing (GPT), a partition and a format.' },
+     { t: 'A webcam stopped working after an update. Open the tool where you can see devices, roll back or update a driver.', accept: [/^devmgmt(\.msc)?$/i], show: 'devmgmt.msc', hint: 'Device Manager: "devmgmt".', out: '[Device Manager opened]\n  Cameras\n    ⚠ Integrated Webcam   (This device cannot start. Code 10)', why: 'devmgmt.msc = Device Manager. A yellow ⚠ means a driver/device problem; try Roll Back Driver.' },
+     { t: 'You need to create a local account and add it to the Administrators group. Open the snap-in for local accounts and groups.', accept: [/^lusrmgr(\.msc)?$/i], show: 'lusrmgr.msc', hint: 'Local Users and Groups Manager: "lusrmgr".', out: '[Local Users and Groups opened]\n  Users\n  Groups', why: 'lusrmgr.msc = Local Users and Groups (not available on Home edition).' },
+     { t: 'A backup script must run every night at 11 PM. Open the tool that runs programs on a schedule.', accept: [/^taskschd(\.msc)?$/i], show: 'taskschd.msc', hint: 'Task Scheduler: "taskschd".', out: '[Task Scheduler opened]\n  Task Scheduler Library', why: 'taskschd.msc = Task Scheduler. Triggers decide when; actions decide what.' },
+     { t: 'You need a full hardware and software summary (BIOS version, installed RAM, system model). Open System Information.', accept: [/^msinfo32(\.exe)?$/i], show: 'msinfo32', hint: 'It starts with "msinfo".', out: '[System Information opened]\nSystem Model        Latitude 5440\nBIOS Version/Date   Dell Inc. 1.14.0, 3/12/2025\nInstalled Physical Memory (RAM)  16.0 GB\nBIOS Mode           UEFI\nSecure Boot State   On', why: 'msinfo32 = System Information: a read-only inventory of the whole machine.', ask: { q: 'What BIOS mode is this PC using?', accept: ['uefi'], why: 'UEFI + Secure Boot On — ready for Windows 11.' } },
+     { t: 'A PC should boot with only basic services to find a bad startup item. Open System Configuration.', accept: [/^msconfig(\.exe)?$/i], show: 'msconfig', hint: 'System Configuration = "msconfig".', out: '[System Configuration opened]\nGeneral | Boot | Services | Startup | Tools\n  ( ) Normal startup  ( ) Diagnostic startup  (•) Selective startup', why: 'msconfig = System Configuration: boot options (Safe boot) and selective startup.' }],
+    'Run names worth knowing cold: eventvwr.msc, diskmgmt.msc, devmgmt.msc, lusrmgr.msc, taskschd.msc, certmgr.msc, perfmon.msc, gpedit.msc, msinfo32, resmon, msconfig, cleanmgr, dfrgui, regedit.',
+    ['Most MMC snap-ins end in .msc. Say the tool name out loud and shorten it: Device Manager → devmgmt.']);
+  M('c2-tools', 'Pick the Windows tool', 'Snap-ins and utilities',
+    'Pick the tool for each job.', ['Performance Monitor', 'Resource Monitor', 'Certificate Manager', 'Group Policy Editor', 'Disk Cleanup', 'Disk Defragmenter (Optimize Drives)', 'Registry Editor', 'System Configuration'],
+    [['Log CPU and disk counters for a week to find a pattern', 'Performance Monitor', 'perfmon.msc: counters and data collector sets over time.'],
+     ['See right now which process is hammering the disk or using a network port', 'Resource Monitor', 'resmon: live detail per process.'],
+     ['View or remove a user\'s installed certificates', 'Certificate Manager', 'certmgr.msc.'],
+     ['Enforce a password and lock-screen policy on one standalone PC', 'Group Policy Editor', 'gpedit.msc (Pro and above).'],
+     ['Free space by deleting temp files and old update files', 'Disk Cleanup', 'cleanmgr.'],
+     ['Speed up a fragmented <b>hard disk</b> drive', 'Disk Defragmenter (Optimize Drives)', 'dfrgui. SSDs are trimmed, not defragmented.'],
+     ['Change a specific key such as one under HKEY_LOCAL_MACHINE', 'Registry Editor', 'regedit: back up before editing.'],
+     ['Choose Safe boot for the next restart', 'System Configuration', 'msconfig → Boot tab.']],
+    'Performance Monitor = over time. Resource Monitor = right now. Defrag HDDs only; SSDs get TRIM.');
+
+  RK.add({ track: TR, id: '1.4', dom: 1, short: 'Windows features & tools', title: 'Given a scenario, use Microsoft Windows operating system features and tools',
+    goal: 'Use Task Manager, the MMC snap-ins and the other built-in tools — and open each one by its run name.',
+    kw: /\b(task manager|event viewer|eventvwr|disk management|diskmgmt|task scheduler|device manager|devmgmt|certificate manager|certmgr|local users and groups|lusrmgr|performance monitor|perfmon|group policy editor|gpedit|system information|msinfo32|resource monitor|resmon|system configuration|msconfig|disk cleanup|cleanmgr|defrag|dfrgui|registry|regedit|mmc|snap.in)/,
+    parts: [
+      P('Task Manager', 'Use each Task Manager tab to find and fix a slow or frozen PC.',
+        `<p>Open it with <b>Ctrl + Shift + Esc</b> (or Ctrl + Alt + Del → Task Manager).</p>
+<table><tr><th>Tab</th><th>Use it to</th></tr>
+<tr><td><b>Processes</b></td><td>See apps and background processes with CPU, memory, disk and network use. Select a frozen app → <b>End task</b>.</td></tr>
+<tr><td><b>Performance</b></td><td>Live graphs for CPU, memory, disk, network, GPU. Shows uptime and how much RAM is installed.</td></tr>
+<tr><td><b>Startup</b></td><td>Enable/disable programs that launch at sign-in. Check the <i>Startup impact</i> column.</td></tr>
+<tr><td><b>Users</b></td><td>See who is signed in and what each user is using; disconnect or sign them off.</td></tr>
+<tr><td><b>Services</b></td><td>Start, stop or restart background services (for example Print Spooler).</td></tr>
+<tr><td><b>Details</b></td><td>Advanced list: PID, priority, end process tree.</td></tr></table>
+<p><b>Reading it:</b> one process at 100% CPU = runaway app. Memory at 95% = too many apps or a leak. Disk at 100% on an HDD = the drive is the bottleneck.</p>
+<div class="callout pro"><b class="k">On the job</b> "My computer is slow" → open Task Manager first and sort by the busiest column. It answers the question in ten seconds.</div>`,
+        [['Which Task Manager tab stops a program from launching when Windows boots?', 'Startup', ['Processes', 'Services', 'Performance'], 'Disable the item on the Startup tab.'],
+         ['A user\'s spreadsheet app is frozen. What is the quickest fix?', 'End the task on the Processes tab', ['Restart the Print Spooler', 'Run Disk Cleanup', 'Reinstall Windows'], 'End task closes the hung app.']],
+        'c2-tm'),
+      P('MMC snap-ins, part 1: logs, disks, devices, tasks', 'Use Event Viewer, Disk Management, Device Manager and Task Scheduler, and open each by name.',
+        `<p>The <b>Microsoft Management Console (MMC)</b> hosts admin tools called <b>snap-ins</b>. Each has a run name ending in <code>.msc</code> — press <b>Win + R</b> and type it.</p>
+<table><tr><th>Snap-in</th><th>Run name</th><th>Use it to</th></tr>
+<tr><td><b>Event Viewer</b></td><td><code>eventvwr.msc</code></td><td>Read logs: <i>Application</i>, <i>Security</i>, <i>System</i>. Levels: Information, Warning, Error, Critical. Note the <b>Event ID</b>.</td></tr>
+<tr><td><b>Disk Management</b></td><td><code>diskmgmt.msc</code></td><td>Initialize disks, create/extend/shrink partitions, format, change drive letters.</td></tr>
+<tr><td><b>Device Manager</b></td><td><code>devmgmt.msc</code></td><td>See hardware; update, roll back, disable or uninstall drivers. Yellow ⚠ = problem.</td></tr>
+<tr><td><b>Task Scheduler</b></td><td><code>taskschd.msc</code></td><td>Run a program or script automatically on a <i>trigger</i> (time, logon, event).</td></tr></table>
+<p><b>Device Manager clues:</b> yellow triangle = driver/device error; down arrow = disabled; "Unknown device" = no driver installed.</p>
+<p>The paired lab is a terminal: you will type the run names to open each tool.</p>`,
+        [['Where do you look to find out why an application crashed yesterday?', 'Event Viewer — Application log', ['Device Manager', 'Disk Management', 'Task Scheduler'], 'Application errors are logged with an Event ID.'],
+         ['A device shows a yellow warning triangle in Device Manager. What does it mean?', 'There is a problem with the device or its driver', ['The device is disabled on purpose', 'The device is working normally', 'The device needs more power'], 'Check the device status code and the driver.']],
+        'c2-run'),
+      P('MMC snap-ins, part 2: accounts, certificates, performance, policy', 'Use Local Users and Groups, Certificate Manager, Performance Monitor and Group Policy Editor.',
+        `<table><tr><th>Snap-in</th><th>Run name</th><th>Use it to</th></tr>
+<tr><td><b>Local Users and Groups</b></td><td><code>lusrmgr.msc</code></td><td>Create local accounts, reset passwords, unlock accounts, change group membership. Not on Home.</td></tr>
+<tr><td><b>Certificate Manager</b></td><td><code>certmgr.msc</code></td><td>View, import, export and delete the current user's certificates (personal, trusted root CAs).</td></tr>
+<tr><td><b>Performance Monitor</b></td><td><code>perfmon.msc</code></td><td>Chart <i>counters</i> (CPU %, disk queue, memory) live or log them over hours/days with <i>data collector sets</i>.</td></tr>
+<tr><td><b>Group Policy Editor</b></td><td><code>gpedit.msc</code></td><td>Set <b>local</b> policies on one PC: password rules, block Control Panel, startup scripts. Pro and above.</td></tr></table>
+<ul><li>Local groups to know: <b>Administrators</b> (full control), <b>Users</b> (standard), <b>Guests</b> (very limited), <b>Power Users</b> (legacy; kept for compatibility).</li>
+<li><code>gpedit.msc</code> edits one PC. In a domain, admins use Group Policy Management on a server to push policies to many PCs.</li></ul>`,
+        [['Which tool logs performance counters over several days to find a recurring slowdown?', 'Performance Monitor', ['Task Manager', 'Event Viewer', 'System Information'], 'Data collector sets record counters over time.'],
+         ['Which snap-in creates a local user account and adds it to a group?', 'Local Users and Groups (lusrmgr.msc)', ['Certificate Manager', 'Device Manager', 'Disk Management'], 'It manages local accounts and groups.']]),
+      P('Additional tools', 'Use System Information, Resource Monitor, System Configuration, Disk Cleanup, Defragment and Registry Editor.',
+        `<table><tr><th>Tool</th><th>Run name</th><th>Use it to</th></tr>
+<tr><td><b>System Information</b></td><td><code>msinfo32</code></td><td>Read-only inventory: model, BIOS/UEFI version, RAM, drivers, Secure Boot state.</td></tr>
+<tr><td><b>Resource Monitor</b></td><td><code>resmon</code></td><td>Live detail: which process uses which file, disk, port or how much memory.</td></tr>
+<tr><td><b>System Configuration</b></td><td><code>msconfig</code></td><td>Boot options (Safe boot), selective/diagnostic startup, disable non-Microsoft services.</td></tr>
+<tr><td><b>Disk Cleanup</b></td><td><code>cleanmgr</code></td><td>Delete temp files, Recycle Bin, old update files to free space.</td></tr>
+<tr><td><b>Disk Defragment</b></td><td><code>dfrgui</code></td><td>"Optimize Drives." Defragments <b>HDDs</b>; sends TRIM to <b>SSDs</b> (never defragment an SSD).</td></tr>
+<tr><td><b>Registry Editor</b></td><td><code>regedit</code></td><td>Edit the registry — the database of Windows and app settings. Back up (export) the key first.</td></tr></table>
+<p><b>Registry hives to recognize:</b> <code>HKEY_LOCAL_MACHINE</code> (HKLM, whole PC) and <code>HKEY_CURRENT_USER</code> (HKCU, the signed-in user).</p>
+<div class="callout trap"><b class="k">Exam trap</b> Performance Monitor = trends over <i>time</i>. Resource Monitor = what is happening <i>right now</i>, per process.</div>`,
+        [['Which tool sets a PC to start in Safe boot on the next restart?', 'System Configuration (msconfig)', ['Disk Cleanup', 'System Information', 'Certificate Manager'], 'Boot tab → Safe boot.'],
+         ['Why should you not defragment an SSD?', 'It gives no speed benefit and adds wear; SSDs use TRIM instead', ['SSDs cannot store fragmented files', 'It erases the SSD', 'Windows blocks SSDs from Optimize Drives'], 'Optimize Drives sends TRIM to SSDs.']],
+        'c2-tools')
+    ],
+    wrap: { recap: ['Task Manager (Ctrl+Shift+Esc): Processes, Performance, Startup, Users, Services, Details.', 'eventvwr.msc logs · diskmgmt.msc disks · devmgmt.msc drivers · taskschd.msc schedules.', 'lusrmgr.msc local accounts · certmgr.msc certificates · perfmon.msc counters over time · gpedit.msc local policy.', 'msinfo32 inventory · resmon live per-process detail · msconfig boot/startup.', 'cleanmgr frees space · dfrgui defrags HDDs, TRIMs SSDs · regedit edits the registry (back up first).', 'Home edition lacks lusrmgr.msc and gpedit.msc.'], lab: 'c2-tools' }
+  });
+
+  // ===================== 1.5 Microsoft command-line tools =====================
+  T('c2-cli-nav', 'Move around and get help', 'cd, dir, md, rmdir and /?',
+    'You are at a Command Prompt on a Windows 11 PC. Complete each task by typing the real command.',
+    { shell: 'cmd', prompt: 'C:\\Users\\tech>' },
+    [{ t: 'List the files and folders in the current directory.', accept: [/^dir$/i], show: 'dir', hint: 'Three letters; short for "directory".', out: ' Directory of C:\\Users\\tech\n\n11/12/2026  09:02 AM    <DIR>          Desktop\n11/12/2026  09:02 AM    <DIR>          Documents\n11/14/2026  04:41 PM    <DIR>          Downloads\n11/10/2026  08:15 AM             1,204 notes.txt\n               1 File(s)          1,204 bytes', why: 'dir lists a folder. <DIR> marks folders.' },
+     { t: 'Change into the <b>Documents</b> folder.', accept: [/^cd documents\\?$/i, /^cd \.\\documents\\?$/i, /^chdir documents$/i], show: 'cd Documents', hint: 'cd = change directory, then the folder name.', out: '', prompt: 'C:\\Users\\tech\\Documents>', why: 'The prompt always shows where you are.' },
+     { t: 'Make a new folder here called <b>Reports</b>.', accept: [/^(md|mkdir) reports$/i], show: 'md Reports', hint: 'md = make directory.', out: '', why: 'md (or mkdir) creates a folder.' },
+     { t: 'Go back <b>up one level</b> to the parent folder.', accept: [/^cd ?\.\.\\?$/i], show: 'cd ..', hint: 'Two dots mean "the parent folder".', out: '', prompt: 'C:\\Users\\tech>', why: '.. always means the folder above.' },
+     { t: 'Remove the empty folder <b>Documents\\Reports</b> without changing directory.', accept: [/^(rmdir|rd) documents\\reports\\?$/i, /^(rmdir|rd) \.\\documents\\reports\\?$/i], show: 'rmdir Documents\\Reports', hint: 'rmdir = remove directory. Give the path from where you are.', out: '', why: 'rmdir removes an empty folder; add /s to remove a folder and everything in it.' },
+     { t: 'You forgot the options for <b>robocopy</b>. Show its built-in help.', accept: [/^robocopy \/\?$/i], show: 'robocopy /?', hint: 'Every command accepts the same help switch: slash question mark.', out: '-------------------------------------------------------------------------------\n   ROBOCOPY     ::     Robust File Copy for Windows\n-------------------------------------------------------------------------------\n      Usage :: ROBOCOPY source destination [file [file]...] [options]\n      /E :: copy subdirectories, including Empty ones.\n    /MIR :: MIRror a directory tree (equivalent to /E plus /PURGE).', why: '[command] /? prints help for any command.', ask: { q: 'Which robocopy switch mirrors a directory tree?', accept: ['/mir', 'mir'], why: '/MIR makes the destination identical to the source — including deleting extra files.' } }],
+    'Navigation: dir, cd, cd .., md, rmdir. Stuck on any command? Add /?.',
+    ['cd = change directory. md = make directory. rmdir = remove directory.']);
+  T('c2-cli-net', 'Network commands on a real ticket', 'ipconfig, ping, nslookup, tracert, netstat, net use',
+    'Ticket: "I can\'t get to the intranet site." You are on the user\'s PC. Work through it like a tech would — from the PC outward.',
+    { shell: 'cmd', prompt: 'C:\\Users\\jsmith>' },
+    [{ t: 'Show this PC\'s <b>full</b> IP configuration, including DNS servers and whether DHCP is on.', accept: [/^ipconfig ?\/all$/i], show: 'ipconfig /all', hint: 'ipconfig with the switch that shows everything.', out: 'Ethernet adapter Ethernet:\n   Description . . . . . . . . : Intel(R) Ethernet Connection I219-LM\n   Physical Address. . . . . . : 8C-16-45-2A-91-0F\n   DHCP Enabled. . . . . . . . : Yes\n   IPv4 Address. . . . . . . . : 10.20.30.57(Preferred)\n   Subnet Mask . . . . . . . . : 255.255.255.0\n   Default Gateway . . . . . . : 10.20.30.1\n   DHCP Server . . . . . . . . : 10.20.30.5\n   DNS Servers . . . . . . . . : 10.20.30.5', ask: { q: 'What is the default gateway?', accept: ['10.20.30.1'], why: 'The gateway is the router that leads off this subnet. Ping it next.' }, why: 'ipconfig /all shows IP, mask, gateway, DHCP and DNS in one place.' },
+     { t: 'Test whether the PC can reach its <b>default gateway</b>.', accept: [/^ping 10\.20\.30\.1$/i], show: 'ping 10.20.30.1', hint: 'ping followed by the gateway address you just read.', out: 'Reply from 10.20.30.1: bytes=32 time<1ms TTL=64\nReply from 10.20.30.1: bytes=32 time<1ms TTL=64\nReply from 10.20.30.1: bytes=32 time<1ms TTL=64\nReply from 10.20.30.1: bytes=32 time<1ms TTL=64\n\nPackets: Sent = 4, Received = 4, Lost = 0 (0% loss)', why: 'Replies from the gateway prove the cable, switch port, IP settings and local network are fine.' },
+     { t: 'Check whether DNS can resolve the name <b>intranet.corp.local</b>.', accept: [/^nslookup intranet\.corp\.local$/i], show: 'nslookup intranet.corp.local', hint: 'The DNS lookup tool, then the name.', out: 'Server:  dc01.corp.local\nAddress:  10.20.30.5\n\nName:    intranet.corp.local\nAddress:  10.20.40.80', ask: { q: 'What IP address does the intranet site resolve to?', accept: ['10.20.40.80'], why: 'DNS works. The server is on another subnet (10.20.40.x), so traffic must be routed.' }, why: 'nslookup proves DNS is answering and shows which server answered.' },
+     { t: 'Trace the route to <b>10.20.40.80</b> to see where packets stop.', accept: [/^tracert 10\.20\.40\.80$/i], show: 'tracert 10.20.40.80', hint: 'Windows spells it tracert.', out: 'Tracing route to 10.20.40.80 over a maximum of 30 hops\n\n  1    <1 ms    <1 ms    <1 ms  10.20.30.1\n  2     *        *        *     Request timed out.\n  3     *        *        *     Request timed out.', ask: { q: 'What is the last hop that answered?', accept: ['10.20.30.1'], why: 'Packets die right after the gateway — a routing or firewall problem between subnets. That is the network team\'s issue: escalate with this evidence.' }, why: 'tracert lists each router hop; the last reply shows where the path breaks.' },
+     { t: 'Before you escalate, list this PC\'s active connections and listening ports <b>numerically</b>.', accept: [/^netstat ?-an?o?$/i, /^netstat ?-na$/i, /^netstat -a -n$/i, /^netstat$/i], show: 'netstat -an', hint: 'netstat, with -a (all) and -n (numbers).', out: 'Active Connections\n\n  Proto  Local Address          Foreign Address        State\n  TCP    0.0.0.0:135            0.0.0.0:0              LISTENING\n  TCP    0.0.0.0:445            0.0.0.0:0              LISTENING\n  TCP    10.20.30.57:49722      10.20.30.5:445         ESTABLISHED', why: 'netstat shows what the PC is connected to and which ports are open.' },
+     { t: 'The user also needs the shared folder back. Map drive <b>S:</b> to <b>\\\\fs01\\sales</b>.', accept: [/^net use s: \\\\fs01\\sales( \/persistent:yes)?$/i], show: 'net use S: \\\\fs01\\sales', hint: 'net use, drive letter with a colon, then the UNC path (two backslashes, server, backslash, share).', out: 'The command completed successfully.', why: 'net use maps (or with /delete, removes) a network drive.' }],
+    'The order matters: own config (ipconfig /all) → gateway (ping) → name resolution (nslookup) → path (tracert). You found the fault is beyond the gateway, with proof. That is a professional escalation.',
+    ['Work from the PC outward: am I configured? can I reach the gateway? does the name resolve? where does the path stop?']);
+  T('c2-cli-sys', 'Disk, system and policy commands', 'chkdsk, sfc, diskpart, gpupdate, gpresult, whoami and more',
+    'You are in an <b>elevated</b> (Run as administrator) Command Prompt on a domain PC that has been crashing and is not getting a new policy.',
+    { shell: 'cmd', prompt: 'C:\\Windows\\System32>' },
+    [{ t: 'Confirm which account you are running as.', accept: [/^whoami$/i], show: 'whoami', hint: 'Literally ask "who am I".', out: 'corp\\tech.admin', why: 'whoami shows domain\\user. Useful to confirm you really are elevated/the right account.' },
+     { t: 'Show this computer\'s name.', accept: [/^hostname$/i], show: 'hostname', hint: 'The command is the word for a computer\'s name.', out: 'WS-ACCT-014', why: 'hostname prints the computer name — put it in the ticket.' },
+     { t: 'Scan protected Windows system files and repair any that are corrupted.', accept: [/^sfc ?\/scannow$/i], show: 'sfc /scannow', hint: 'System File Checker, with the switch that scans now.', out: 'Beginning system scan.  This process will take some time.\n\nBeginning verification phase of system scan.\nVerification 100% complete.\n\nWindows Resource Protection found corrupt files and successfully repaired them.', why: 'sfc /scannow replaces damaged system files from a cached copy.' },
+     { t: 'Check drive <b>C:</b> for filesystem errors and <b>fix</b> them.', accept: [/^chkdsk c: ?\/f$/i, /^chkdsk ?\/f c:$/i, /^chkdsk c: ?\/r$/i, /^chkdsk c: \/f \/r$/i], show: 'chkdsk C: /f', hint: 'Check disk, the drive, and the switch that fixes.', out: 'The type of the file system is NTFS.\nCannot lock current drive.\n\nChkdsk cannot run because the volume is in use by another\nprocess.  Would you like to schedule this volume to be\nchecked the next time the system restarts? (Y/N) Y\n\nThis volume will be checked the next time the system restarts.', why: 'chkdsk /f fixes filesystem errors; /r also finds bad sectors. The system drive is checked at the next restart.' },
+     { t: 'Force this PC to re-apply Group Policy right now.', accept: [/^gpupdate( ?\/force)?$/i], show: 'gpupdate /force', hint: 'Group policy update.', out: 'Updating policy...\n\nComputer Policy update has completed successfully.\nUser Policy update has completed successfully.', why: 'gpupdate /force re-applies all policies instead of waiting for the background refresh.' },
+     { t: 'Show a <b>summary</b> of which policies (GPOs) are actually applied to this user and computer.', accept: [/^gpresult ?\/r$/i], show: 'gpresult /r', hint: 'Group policy result, with /r for the summary report.', out: 'COMPUTER SETTINGS\n    Applied Group Policy Objects\n        Default Domain Policy\n        Workstation Baseline\n\nUSER SETTINGS\n    Applied Group Policy Objects\n        Default Domain Policy\n    The following GPOs were not applied because they were filtered out\n        Accounting Drive Maps\n            Filtering:  Denied (Security)', ask: { q: 'Which GPO was filtered out (not applied)?', accept: ['accounting drive maps'], why: '"Denied (Security)" = the user is not in the group the GPO is filtered to. Fix the group membership, not the PC.' }, why: 'gpresult /r proves what did and did not apply — and why.' },
+     { t: 'Show the Windows version and build in a pop-up window.', accept: [/^winver$/i], show: 'winver', hint: 'Windows version, shortened.', out: '[About Windows]\nWindows 11 Pro   Version 24H2 (OS Build 26100.2314)', why: 'winver is the fastest way to answer "what version are you on?"' }],
+    'sfc repairs system files. chkdsk repairs the filesystem. gpupdate applies policy; gpresult proves what applied. These need an elevated prompt.',
+    ['System File Checker = sfc. Check Disk = chkdsk. Group Policy = gpupdate / gpresult.']);
+  M('c2-cli-pick', 'Pick the command', 'All 1.5 commands by purpose',
+    'Pick the command for each job.', ['pathping', 'robocopy', 'diskpart', 'format', 'net user', 'net use', 'netstat', 'gpresult', 'sfc', 'chkdsk'],
+    [['Trace the route AND measure packet loss at each hop', 'pathping', 'tracert + ping statistics.'],
+     ['Copy a large folder tree to a server, resuming after a dropped connection', 'robocopy', 'Robust copy: retries, /MIR, logs.'],
+     ['Partition a disk from the command line (list disk, select disk, clean)', 'diskpart', 'Powerful and destructive.'],
+     ['Put a new filesystem on a volume', 'format', 'Erases the volume\'s file table.'],
+     ['List local accounts or reset a local password', 'net user', 'net user name * to set a password.'],
+     ['Map or disconnect a network drive', 'net use', 'net use Z: \\\\server\\share.'],
+     ['See listening ports and active connections', 'netstat', 'netstat -an (add -o for PIDs).'],
+     ['Prove which Group Policy Objects applied', 'gpresult', 'gpresult /r.'],
+     ['Repair corrupted Windows system files', 'sfc', 'sfc /scannow.'],
+     ['Repair filesystem errors and bad sectors on a drive', 'chkdsk', 'chkdsk /f or /r.']],
+    'If you can pick the command from the job description, you can answer every 1.5 question.');
+
+  RK.add({ track: TR, id: '1.5', dom: 1, short: 'Microsoft command-line tools', title: 'Given a scenario, use the appropriate Microsoft command-line tools',
+    goal: 'Type the real commands: navigation, networking, disk, file, informational and OS-management tools — and read their output.',
+    kw: /\b(command.line|command prompt|\bcmd\b|\bcd\b|\bdir\b|ipconfig|\bping\b|netstat|nslookup|net use|tracert|pathping|chkdsk|\bformat\b|diskpart|\bmd\b|rmdir|robocopy|hostname|net user|winver|whoami|gpupdate|gpresult|\bsfc\b|\/\?)/,
+    parts: [
+      P('Navigation and help: cd, dir, md, rmdir, /?', 'Move around the filesystem, create and remove folders, and get help on any command.',
+        `<p>The <b>Command Prompt</b> (<code>cmd</code>) shows a <b>prompt</b> such as <code>C:\\Users\\tech&gt;</code>. That path is your current folder.</p>
+<table><tr><th>Command</th><th>Does</th><th>Example</th></tr>
+<tr><td><code>dir</code></td><td>List the folder</td><td><code>dir</code> · <code>dir /a</code> (include hidden)</td></tr>
+<tr><td><code>cd</code></td><td>Change directory</td><td><code>cd Documents</code> · <code>cd ..</code> (up one) · <code>cd \\</code> (root)</td></tr>
+<tr><td><code>md</code></td><td>Make a directory</td><td><code>md Reports</code></td></tr>
+<tr><td><code>rmdir</code></td><td>Remove a directory</td><td><code>rmdir Reports</code> · <code>rmdir /s Reports</code> (with contents)</td></tr>
+<tr><td><code>[command] /?</code></td><td>Help for that command</td><td><code>robocopy /?</code></td></tr></table>
+<ul><li>Switch drives by typing the letter: <code>D:</code></li>
+<li>Paths use backslashes: <code>C:\\Users\\tech\\Documents</code>. Put quotes around paths with spaces.</li>
+<li>Commands are <b>not</b> case-sensitive in Windows.</li>
+<li>Some commands need an <b>elevated</b> prompt: right-click → <i>Run as administrator</i>.</li></ul>`,
+        [['Which command moves up one folder level?', 'cd ..', ['cd /', 'dir ..', 'md ..'], 'Two dots mean the parent directory.'],
+         ['How do you see the available switches for any command?', 'Add /? after the command', ['Add --help', 'Type man before it', 'Press F1'], 'For example: chkdsk /?']],
+        'c2-cli-nav'),
+      P('Network commands', 'Use ipconfig, ping, nslookup, tracert, pathping, netstat and net use in the right order.',
+        `<table><tr><th>Command</th><th>Answers</th><th>Useful forms</th></tr>
+<tr><td><code>ipconfig</code></td><td>What are my IP settings?</td><td><code>/all</code> (everything) · <code>/release</code> + <code>/renew</code> (new DHCP lease) · <code>/flushdns</code></td></tr>
+<tr><td><code>ping</code></td><td>Can I reach it? How fast?</td><td><code>ping 10.0.0.1</code> · <code>ping -t</code> (until stopped)</td></tr>
+<tr><td><code>nslookup</code></td><td>Does the name resolve? Which DNS answered?</td><td><code>nslookup server01</code></td></tr>
+<tr><td><code>tracert</code></td><td>Which routers are on the path? Where does it stop?</td><td><code>tracert 8.8.8.8</code></td></tr>
+<tr><td><code>pathping</code></td><td>Path <i>plus</i> packet loss at each hop</td><td>Slower; great for "intermittent"</td></tr>
+<tr><td><code>netstat</code></td><td>What connections and listening ports are open?</td><td><code>-a</code> all · <code>-n</code> numbers · <code>-o</code> process ID</td></tr>
+<tr><td><code>net use</code></td><td>Map / list / remove network drives</td><td><code>net use Z: \\\\fs01\\share</code> · <code>net use Z: /delete</code></td></tr></table>
+<p><b>Troubleshoot from the PC outward:</b> <code>ipconfig /all</code> → ping the gateway → <code>nslookup</code> the name → <code>tracert</code> to the server.</p>
+<div class="callout pro"><b class="k">On the job</b> An address of <code>169.254.x.x</code> in ipconfig means the PC got no answer from DHCP. Check the cable/Wi-Fi, then <code>ipconfig /renew</code>.</div>`,
+        [['Which command shows the DNS servers a PC is using?', 'ipconfig /all', ['ipconfig', 'ping', 'netstat -an'], 'Plain ipconfig omits DNS servers.'],
+         ['A site loads by IP address but not by name. Which tool tests the likely cause?', 'nslookup', ['tracert', 'net use', 'chkdsk'], 'Name resolution (DNS) is the suspect.'],
+         ['Which command combines the features of tracert and ping to show loss per hop?', 'pathping', ['netstat', 'nslookup', 'ipconfig /all'], 'pathping measures loss at each router.']],
+        'c2-cli-net'),
+      P('Disk and file commands', 'Use chkdsk, format, diskpart and robocopy safely.',
+        `<table><tr><th>Command</th><th>Does</th><th>Know</th></tr>
+<tr><td><code>chkdsk</code></td><td>Checks a volume's filesystem</td><td><code>/f</code> fix errors · <code>/r</code> locate bad sectors and recover data (includes /f). C: runs at next restart.</td></tr>
+<tr><td><code>format</code></td><td>Creates a new filesystem on a volume</td><td><code>format D: /fs:ntfs /q</code>. <b>Erases the file table.</b></td></tr>
+<tr><td><code>diskpart</code></td><td>Interactive disk partitioning</td><td><code>list disk</code> → <code>select disk 1</code> → <code>clean</code> → <code>create partition primary</code>. <code>clean</code> wipes the partition table — triple-check the selected disk.</td></tr>
+<tr><td><code>robocopy</code></td><td>Robust file copy</td><td><code>robocopy C:\\Data \\\\fs01\\Backup /E</code> (subfolders) · <code>/MIR</code> (mirror — also deletes extras) · restarts after network drops.</td></tr></table>
+<div class="callout trap"><b class="k">Exam trap</b> <code>chkdsk</code> fixes the <b>disk's filesystem</b>. <code>sfc</code> fixes <b>Windows system files</b>. Clicking noises or bad sectors → chkdsk /r. Missing/corrupt DLLs → sfc /scannow.</div>
+<div class="callout pro"><b class="k">On the job</b> Use robocopy, not drag-and-drop, to move a user's profile or a big share. It logs, retries and can resume.</div>`,
+        [['Which chkdsk switch locates bad sectors and recovers readable data?', '/r', ['/f', '/q', '/all'], '/r includes /f and adds a surface scan.'],
+         ['Which command is best for copying a large folder tree over an unreliable network link?', 'robocopy', ['format', 'diskpart', 'cd'], 'It retries and resumes.']]),
+      P('Informational and OS-management commands', 'Use hostname, whoami, winver, net user, gpupdate, gpresult and sfc.',
+        `<table><tr><th>Command</th><th>Tells you / does</th></tr>
+<tr><td><code>hostname</code></td><td>The computer's name</td></tr>
+<tr><td><code>whoami</code></td><td>The signed-in account (<code>domain\\user</code>)</td></tr>
+<tr><td><code>winver</code></td><td>Windows edition, version and build (opens a window)</td></tr>
+<tr><td><code>net user</code></td><td>Lists local accounts. <code>net user jsmith</code> shows details; <code>net user jsmith *</code> sets a new password; <code>/add</code> creates one.</td></tr>
+<tr><td><code>gpupdate</code></td><td>Re-applies Group Policy now. <code>/force</code> re-applies everything.</td></tr>
+<tr><td><code>gpresult</code></td><td>Shows which policies <i>actually applied</i>. <code>/r</code> = summary.</td></tr>
+<tr><td><code>sfc</code></td><td>System File Checker. <code>sfc /scannow</code> verifies and repairs protected system files.</td></tr></table>
+<p><b>Typical use:</b> "The new drive mapping policy isn't working on my PC." → <code>gpupdate /force</code>, then <code>gpresult /r</code> to see whether the policy is listed. If it was filtered out, the problem is group membership or scope — not the PC.</p>`,
+        [['Which command immediately re-applies Group Policy settings?', 'gpupdate /force', ['gpresult /r', 'sfc /scannow', 'net use'], 'gpupdate applies; gpresult reports.'],
+         ['Which command verifies and repairs corrupted Windows system files?', 'sfc /scannow', ['chkdsk /f', 'format /q', 'diskpart clean'], 'System File Checker.']],
+        'c2-cli-sys')
+    ],
+    wrap: { recap: ['Navigate: dir, cd, cd .., md, rmdir. Help on anything: command /?', 'Network, PC outward: ipconfig /all → ping gateway → nslookup → tracert / pathping. netstat for ports; net use for mapped drives.', 'ipconfig /release, /renew, /flushdns. 169.254.x.x = no DHCP.', 'chkdsk /f /r = filesystem and bad sectors. sfc /scannow = Windows system files.', 'format = new filesystem. diskpart = partitions (clean wipes). robocopy = robust copy (/E, /MIR).', 'hostname, whoami, winver, net user. gpupdate /force applies policy; gpresult /r proves it.'], lab: 'c2-cli-pick' }
+  });
+
+  // ===================== 1.6 Windows settings =====================
+  M('c2-cp', 'Which Control Panel utility?', 'Classic Control Panel applets',
+    'Pick the Control Panel utility for each task.', ['Programs and Features', 'Devices and Printers', 'Network and Sharing Center', 'Windows Defender Firewall', 'User Accounts', 'Internet Options', 'Power Options', 'File Explorer Options', 'Indexing Options', 'Sound', 'Mail'],
+    [['Uninstall an application or turn a Windows feature on', 'Programs and Features', 'Also "Turn Windows features on or off".'],
+     ['Set the default printer or view its queue', 'Devices and Printers', 'Printers, scanners, other devices.'],
+     ['Change adapter settings or the network profile', 'Network and Sharing Center', 'Adapter, sharing and connection settings.'],
+     ['Allow an app through, or block an inbound port', 'Windows Defender Firewall', 'Rules and exceptions.'],
+     ['Change an account type from Standard to Administrator', 'User Accounts', 'Local account management.'],
+     ['Set a proxy server, home page or clear browsing history for legacy browser settings', 'Internet Options', 'Connections tab → LAN settings.'],
+     ['Stop a laptop sleeping when the lid closes', 'Power Options', 'Choose what closing the lid does.'],
+     ['Show hidden files and file extensions', 'File Explorer Options', 'View tab.'],
+     ['Searches cannot find files in a new folder; add it to the search catalog', 'Indexing Options', 'Rebuild or modify the index.'],
+     ['Pick the default speakers or microphone', 'Sound', 'Playback / Recording tabs.'],
+     ['Create or repair an Outlook mail profile', 'Mail', 'Appears when Outlook is installed.']],
+    'Control Panel still holds the detailed, classic settings. Open it with "control" from Run.');
+  M('c2-settings', 'Which Settings category?', 'The modern Settings app',
+    'Pick the Settings category for each task.', ['System', 'Devices', 'Network and Internet', 'Personalization', 'Apps', 'Accounts', 'Time and Language', 'Gaming', 'Ease of Access', 'Privacy', 'Update and Security'],
+    [['Change display resolution or see device specifications (About)', 'System', 'Display, notifications, storage, About.'],
+     ['Pair a Bluetooth mouse or add a printer', 'Devices', 'Bluetooth, printers, mouse, USB.'],
+     ['Connect to Wi-Fi, set a VPN or a proxy', 'Network and Internet', 'Wi-Fi, Ethernet, VPN, proxy.'],
+     ['Change the wallpaper, theme or lock screen', 'Personalization', 'Look and feel.'],
+     ['Set the default browser or uninstall an app', 'Apps', 'Installed apps, default apps, startup.'],
+     ['Add a work or school account, set up a PIN or fingerprint', 'Accounts', 'Sign-in options, family.'],
+     ['Fix the wrong time zone or add a keyboard language', 'Time and Language', 'Region, language, speech.'],
+     ['Turn on Game Mode or the capture bar', 'Gaming', 'Game Bar, Game Mode.'],
+     ['Turn on the screen reader or high contrast', 'Ease of Access', 'Called Accessibility in Windows 11.'],
+     ['Stop apps using the camera, microphone or location', 'Privacy', 'App permissions.'],
+     ['Check for Windows updates, open recovery or activation', 'Update and Security', 'Windows Update, recovery, backup.']],
+    'Windows 11 renames a few: Ease of Access → Accessibility, Devices → Bluetooth & devices, Update & Security → Windows Update (+ Privacy & security). The exam uses the names above.');
+  M('c2-power', 'Power and Explorer options', 'Sleep, hibernate, fast startup, hidden files',
+    'Pick the setting for each need.', ['Sleep / suspend', 'Hibernate', 'Fast startup', 'Lid close action', 'USB selective suspend', 'Power plan', 'Show hidden files', 'Hide extensions (turn off)'],
+    [['Pause quickly, keep work in RAM, wake in a second; still uses a little power', 'Sleep / suspend', 'State kept in RAM.'],
+     ['Save everything to disk and power off completely; resume later exactly where you were', 'Hibernate', 'State saved to hiberfil.sys; zero power.'],
+     ['Windows boots faster after Shut down, but a dual-boot or update issue appears', 'Fast startup', 'A hybrid shutdown; turn off to troubleshoot.'],
+     ['Laptop should keep running when closed and docked', 'Lid close action', 'Set to "Do nothing".'],
+     ['A USB device keeps disconnecting to save power', 'USB selective suspend', 'Disable it in advanced power settings.'],
+     ['Choose Balanced, Power saver or High performance', 'Power plan', 'A named set of power settings.'],
+     ['You need to see the AppData folder', 'Show hidden files', 'File Explorer Options → View.'],
+     ['A user cannot tell invoice.pdf from invoice.pdf.exe', 'Hide extensions (turn off)', 'Show extensions to expose disguised malware.']],
+    'Sleep = RAM, fast, some power. Hibernate = disk, slower, no power. Fast startup = partial hibernate on shutdown.');
+
+  RK.add({ track: TR, id: '1.6', dom: 1, short: 'Windows settings', title: 'Given a scenario, configure Microsoft Windows settings',
+    goal: 'Find the right Control Panel utility or Settings category for any task, including power and File Explorer options.',
+    kw: /\b(control panel|internet options|devices and printers|programs and features|network and sharing|user accounts|indexing|administrative tools|file explorer options|hidden files|extensions|power options|power plan|hibernate|sleep|standby|suspend|fast startup|selective suspend|lid|ease of access|accessibility|time and language|personalization|settings app|privacy settings|gaming)/,
+    parts: [
+      P('Control Panel utilities', 'Pick the classic Control Panel utility for a task.',
+        `<p>Windows has two places for settings: the classic <b>Control Panel</b> and the modern <b>Settings</b> app. The exam names both.</p>
+<table><tr><th>Utility</th><th>Use it to</th></tr>
+<tr><td><b>Internet Options</b></td><td>Proxy (Connections → LAN settings), security zones, home page, clear history</td></tr>
+<tr><td><b>Devices and Printers</b></td><td>Add/remove printers, set the default, see the queue</td></tr>
+<tr><td><b>Programs and Features</b></td><td>Uninstall/repair apps; turn Windows features on or off</td></tr>
+<tr><td><b>Network and Sharing Center</b></td><td>Adapter settings, network profile, sharing options</td></tr>
+<tr><td><b>System</b></td><td>Computer name, domain/workgroup, remote settings, performance options</td></tr>
+<tr><td><b>Windows Defender Firewall</b></td><td>Turn on/off per profile; allow an app; advanced rules</td></tr>
+<tr><td><b>Mail</b></td><td>Outlook profiles and data files</td></tr>
+<tr><td><b>Sound</b></td><td>Default playback/recording device, levels</td></tr>
+<tr><td><b>User Accounts</b></td><td>Account type, credentials, UAC settings</td></tr>
+<tr><td><b>Device Manager</b></td><td>Drivers and hardware</td></tr>
+<tr><td><b>Indexing Options</b></td><td>What Windows Search indexes; rebuild the index</td></tr>
+<tr><td><b>Administrative Tools</b></td><td>Shortcuts to the snap-ins (called <i>Windows Tools</i> in Windows 11)</td></tr></table>`,
+        [['Where do you uninstall a program or turn on a Windows feature such as Hyper-V?', 'Programs and Features', ['Devices and Printers', 'Indexing Options', 'Internet Options'], 'It also holds "Turn Windows features on or off".'],
+         ['Windows Search cannot find files in a new data folder. Which utility fixes this?', 'Indexing Options', ['Sound', 'Mail', 'User Accounts'], 'Add the location or rebuild the index.']],
+        'c2-cp'),
+      P('File Explorer and Power Options', 'Configure hidden files, extensions, sleep, hibernate, lid action and fast startup.',
+        `<p><b>File Explorer Options</b> (General and View tabs):</p>
+<ul><li><b>Show hidden files, folders and drives</b> — needed to see folders like <code>AppData</code>.</li>
+<li><b>Hide extensions for known file types</b> — turn this <b>off</b> so <code>report.pdf.exe</code> cannot pretend to be a PDF.</li>
+<li><b>General</b> — open to "This PC" or "Home", single- or double-click, privacy (recent files).</li></ul>
+<p><b>Power Options:</b></p>
+<table><tr><th>Setting</th><th>Meaning</th></tr>
+<tr><td><b>Sleep / suspend / standby</b></td><td>Work stays in RAM; low power; wakes in seconds. Lost if the battery dies.</td></tr>
+<tr><td><b>Hibernate</b></td><td>Work saved to disk; PC fully off; slower to resume. Safe for a bag.</td></tr>
+<tr><td><b>Power plans</b></td><td>Balanced, Power saver, High performance.</td></tr>
+<tr><td><b>Choose what closing the lid does</b></td><td>Do nothing / Sleep / Hibernate / Shut down.</td></tr>
+<tr><td><b>Fast startup</b></td><td>Shut down saves the kernel to disk for a quicker boot. Turn off when dual-booting or when updates/drivers misbehave.</td></tr>
+<tr><td><b>USB selective suspend</b></td><td>Powers down idle USB ports. Disable if a USB device keeps dropping.</td></tr></table>`,
+        [['Which power state saves open work to the drive and uses no power?', 'Hibernate', ['Sleep', 'Standby', 'Fast startup'], 'Hibernate writes RAM to disk and powers off.'],
+         ['Why turn OFF "Hide extensions for known file types"?', 'So disguised files like invoice.pdf.exe are obvious', ['To make files open faster', 'To show hidden system folders', 'To enable file sharing'], 'Users can see the real file type.']],
+        'c2-power'),
+      P('The Settings app', 'Pick the Settings category for a task.',
+        `<p>Open Settings with <b>Win + I</b>. The exam lists these categories:</p>
+<table><tr><th>Category</th><th>Contains</th></tr>
+<tr><td><b>System</b></td><td>Display, sound, notifications, power, storage, <b>About</b> (specs, rename PC)</td></tr>
+<tr><td><b>Devices</b></td><td>Bluetooth, printers and scanners, mouse, typing, USB</td></tr>
+<tr><td><b>Network and Internet</b></td><td>Wi-Fi, Ethernet, VPN, proxy, mobile hotspot, airplane mode</td></tr>
+<tr><td><b>Personalization</b></td><td>Background, colors, themes, lock screen, taskbar</td></tr>
+<tr><td><b>Apps</b></td><td>Installed apps, default apps, optional features, startup apps</td></tr>
+<tr><td><b>Accounts</b></td><td>Your info, email accounts, sign-in options (PIN, fingerprint), work or school access</td></tr>
+<tr><td><b>Time and Language</b></td><td>Date/time, time zone, region, language, keyboard</td></tr>
+<tr><td><b>Gaming</b></td><td>Game Bar, captures, Game Mode</td></tr>
+<tr><td><b>Ease of Access</b></td><td>Narrator, magnifier, high contrast, closed captions</td></tr>
+<tr><td><b>Privacy</b></td><td>App permissions: location, camera, microphone; diagnostics</td></tr>
+<tr><td><b>Update and Security</b></td><td>Windows Update, Windows Security, backup, recovery, activation</td></tr></table>
+<p>A wrong clock breaks logins and secure websites — <b>Time and Language</b> is a real fix, not a cosmetic one.</p>`,
+        [['Where do you allow or block an app\'s access to the microphone?', 'Privacy', ['Devices', 'Accounts', 'Personalization'], 'App permissions live under Privacy.'],
+         ['Where do you add a work or school account to a PC?', 'Accounts', ['System', 'Apps', 'Update and Security'], 'Accounts → Access work or school.']],
+        'c2-settings')
+    ],
+    wrap: { recap: ['Control Panel: Programs and Features (uninstall/features), Devices and Printers, Network and Sharing Center, User Accounts, Sound, Mail, Indexing Options, Internet Options (proxy).', 'File Explorer Options: show hidden files; show extensions to expose fake file types.', 'Sleep = RAM, quick. Hibernate = disk, no power. Fast startup = hybrid shutdown (disable to troubleshoot).', 'Lid close action and USB selective suspend live in Power Options.', 'Settings (Win+I): System, Devices, Network and Internet, Personalization, Apps, Accounts, Time and Language, Gaming, Ease of Access, Privacy, Update and Security.'], lab: 'c2-settings' }
+  });
+})();
+
+;
+/* A+ Core 2 (220-1202) — Domain 1.0 Operating Systems — objectives 1.7 to 1.11 + domain wrap lab */
+(function () {
+  var RK = window.RK, P = RK.P, M = RK.M, O = RK.O, T = RK.T, TR = 'core2';
+
+  // ===================== 1.7 Windows networking =====================
+  M('c2-dom', 'Workgroup or domain?', 'Where accounts and policies live',
+    'Pick workgroup or domain for each statement.', ['Workgroup', 'Domain'],
+    [['Each PC keeps its own user accounts; you need an account on every PC you use', 'Workgroup', 'Peer-to-peer, decentralized.'],
+     ['One username and password works on every company PC', 'Domain', 'Accounts live in Active Directory.'],
+     ['A server called a domain controller authenticates sign-ins', 'Domain', 'Central authentication.'],
+     ['Fine for a home or an office of five PCs', 'Workgroup', 'Does not scale.'],
+     ['IT pushes a password policy and drive mappings to 800 PCs at once', 'Domain', 'Group Policy.'],
+     ['Windows Home edition can only be part of this', 'Workgroup', 'Home cannot join a domain.']],
+    'Workgroup = every PC for itself. Domain = central accounts, central policy, single sign-on.');
+  T('c2-netcfg', 'Fix a client\'s network settings', 'Read the config, find the fault, map resources',
+    'Ticket: a new hire\'s PC (static IP, set by hand) can reach the printer next to it but not the file server or the Internet. You are at an elevated Command Prompt on that PC.',
+    { shell: 'cmd', prompt: 'C:\\Windows\\System32>' },
+    [{ t: 'Show the PC\'s full IP configuration.', accept: [/^ipconfig ?\/all$/i], show: 'ipconfig /all', hint: 'ipconfig with the "everything" switch.', out: 'Ethernet adapter Ethernet:\n   DHCP Enabled. . . . . . . . : No\n   IPv4 Address. . . . . . . . : 192.168.10.84\n   Subnet Mask . . . . . . . . : 255.255.255.0\n   Default Gateway . . . . . . : 192.168.11.1\n   DNS Servers . . . . . . . . : 192.168.10.10', ask: { q: 'Which setting is wrong? (type: ip, mask, gateway or dns)', accept: ['gateway', 'default gateway'], why: 'The gateway must be in the PC\'s own subnet (192.168.10.x). 192.168.11.1 is unreachable, so only local devices work.' }, why: 'Local works, remote fails → suspect the default gateway.' },
+     { t: 'The correct gateway is 192.168.10.1. After fixing it in the adapter properties, confirm you can reach the gateway.', accept: [/^ping 192\.168\.10\.1$/i], show: 'ping 192.168.10.1', hint: 'ping the new gateway address.', out: 'Reply from 192.168.10.1: bytes=32 time<1ms TTL=64\nReply from 192.168.10.1: bytes=32 time<1ms TTL=64\n\nPackets: Sent = 4, Received = 4, Lost = 0 (0% loss)', why: 'Gateway answers — off-subnet traffic now has a way out.' },
+     { t: 'Confirm name resolution works for <b>fs01.corp.local</b>.', accept: [/^nslookup fs01\.corp\.local$/i, /^ping fs01\.corp\.local$/i], show: 'nslookup fs01.corp.local', hint: 'Use the DNS lookup tool.', out: 'Server:  dc01.corp.local\nAddress:  192.168.10.10\n\nName:    fs01.corp.local\nAddress:  192.168.20.15', why: 'DNS is fine; the file server is on another subnet, which is why the gateway mattered.' },
+     { t: 'Map drive <b>H:</b> to the user\'s home share <b>\\\\fs01\\home\\mlopez</b>.', accept: [/^net use h: \\\\fs01\\home\\mlopez( \/persistent:yes)?$/i], show: 'net use H: \\\\fs01\\home\\mlopez', hint: 'net use, the drive letter and colon, then the UNC path.', out: 'The command completed successfully.', why: 'A UNC path is \\\\server\\share\\folder.' },
+     { t: 'List the drives that are currently mapped to confirm.', accept: [/^net use$/i], show: 'net use', hint: 'The same command with nothing after it.', out: 'Status       Local     Remote                    Network\n-------------------------------------------------------------------------------\nOK           H:        \\\\fs01\\home\\mlopez        Microsoft Windows Network\nThe command completed successfully.', why: 'net use with no arguments lists connections.' }],
+    'Symptom pattern to memorize: local devices work but nothing beyond the subnet → wrong or missing default gateway.',
+    ['The gateway has to be an address inside the PC\'s own subnet.']);
+  M('c2-netfeat', 'Windows networking features', 'Profiles, firewall, proxy, VPN, metered',
+    'Pick the feature or setting for each situation.', ['Public network profile', 'Private network profile', 'Firewall exception', 'Proxy settings', 'VPN connection', 'Metered connection', 'WWAN / cellular', 'Mapped drive'],
+    [['Laptop on coffee-shop Wi-Fi should be hidden from other devices', 'Public network profile', 'Discovery and sharing off.'],
+     ['Home network where the PC should see the printer and other PCs', 'Private network profile', 'Discovery on.'],
+     ['A new accounting app cannot receive connections until it is allowed through', 'Firewall exception', 'Allow an app or port.'],
+     ['Company requires all web traffic to go through a filtering server', 'Proxy settings', 'Settings → Network → Proxy.'],
+     ['Remote worker needs an encrypted tunnel to reach internal file shares', 'VPN connection', 'Add under Network and Internet → VPN.'],
+     ['Tethered to a phone with a 5 GB data cap; stop big updates downloading', 'Metered connection', 'Limits background data.'],
+     ['Field laptop with a built-in SIM for Internet anywhere', 'WWAN / cellular', 'Wireless wide area network.'],
+     ['Users want \\\\fs01\\projects to appear as drive P:', 'Mapped drive', 'A drive letter for a network share.']],
+    'Public = hide me. Private = trust this network. Domain profile applies automatically when a domain PC sees its domain controller.');
+
+  RK.add({ track: TR, id: '1.7', dom: 1, short: 'Windows networking', title: 'Given a scenario, configure Microsoft Windows networking features on a client/desktop',
+    goal: 'Domain vs workgroup, shared resources and mapped drives, the local firewall, IP settings, connection types, proxy, network profiles and metered connections.',
+    kw: /\b(workgroup|domain.joined|join(ing)? (a|the) domain|mapped drive|map(ping)? a (network )?drive|shared (resource|folder|printer)|file server|unc path|\\\\\\\\|firewall (exception|rule)|static (ip|address)|dynamic (ip|address)|subnet mask|default gateway|dns server|proxy|public network|private network|network profile|metered|wwan|vpn connection|network discovery)/,
+    parts: [
+      P('Workgroup vs domain and shared resources', 'Explain workgroups and domains, and reach shared printers, file servers and mapped drives.',
+        `<table><tr><th></th><th>Workgroup</th><th>Domain</th></tr>
+<tr><td>Accounts stored</td><td>On each PC (local accounts)</td><td>Centrally, in <b>Active Directory</b> on a <b>domain controller</b></td></tr>
+<tr><td>Sign-in</td><td>Separate account per PC</td><td>One account works on any domain PC</td></tr>
+<tr><td>Management</td><td>Each PC by hand</td><td><b>Group Policy</b> from the server</td></tr>
+<tr><td>Size</td><td>Home / under ~20 PCs</td><td>Businesses of any size</td></tr>
+<tr><td>Editions</td><td>Any</td><td>Pro and above</td></tr></table>
+<p><b>Shared resources:</b></p>
+<ul><li><b>File servers</b> hold shared folders (<b>shares</b>). You reach one with a <b>UNC path</b>: <code>\\\\server\\share</code>.</li>
+<li><b>Mapped drive</b> — a drive letter that points at a share (<code>P:</code> → <code>\\\\fs01\\projects</code>). Map in File Explorer or with <code>net use</code>.</li>
+<li><b>Printers</b> — shared from a print server (<code>\\\\print01\\HR-Laser</code>) or connected directly by IP.</li></ul>
+<p>Join a domain in <b>Settings → Accounts → Access work or school</b> or System Properties → Computer Name → Change. You need a domain account allowed to join, and the PC must use the domain's DNS server.</p>`,
+        [['Where are user accounts stored in a workgroup?', 'On each individual PC', ['On a domain controller', 'In the cloud only', 'On the router'], 'Workgroups are decentralized.'],
+         ['Which is a valid UNC path to a shared folder?', '\\\\fs01\\projects', ['C:\\fs01\\projects', 'fs01:/projects', 'http://fs01.projects'], 'Two backslashes, server, backslash, share.']],
+        'c2-dom'),
+      P('Client IP configuration', 'Set and check IP address, subnet mask, gateway and DNS; choose static or dynamic.',
+        `<p>Every network adapter needs four settings:</p>
+<table><tr><th>Setting</th><th>Job</th><th>If it is wrong</th></tr>
+<tr><td><b>IP address</b></td><td>This PC's address</td><td>Duplicate = conflict warnings; wrong subnet = no communication</td></tr>
+<tr><td><b>Subnet mask</b></td><td>Says which addresses are "local"</td><td>Some local hosts unreachable</td></tr>
+<tr><td><b>Default gateway</b></td><td>The router to everything else</td><td>Local works, Internet and other subnets fail</td></tr>
+<tr><td><b>DNS server</b></td><td>Turns names into IPs</td><td>Sites work by IP but not by name</td></tr></table>
+<ul><li><b>Dynamic</b> — settings come from <b>DHCP</b> automatically. Use for nearly all clients.</li>
+<li><b>Static</b> — typed in by hand. Use for servers, printers and network gear that must not change.</li>
+<li><b>APIPA</b> (<code>169.254.x.x</code>) — the PC asked for DHCP and nobody answered.</li>
+<li><b>Alternate configuration</b> — a fallback static address used when DHCP is not available (a laptop that visits a site with no DHCP).</li></ul>
+<p>Set them in <b>Settings → Network and Internet → adapter → IP assignment</b>, or the adapter's <b>IPv4 Properties</b>.</p>`,
+        [['A PC can reach devices on its own subnet but nothing else. Which setting is most likely wrong?', 'Default gateway', ['DNS server', 'IP address', 'Computer name'], 'The gateway is the way off the subnet.'],
+         ['A PC shows the address 169.254.12.7. What happened?', 'It could not reach a DHCP server', ['It has a static address', 'DNS failed', 'The firewall blocked it'], 'APIPA is self-assigned when DHCP does not answer.']],
+        'c2-netcfg'),
+      P('Firewall, profiles, proxy and connections', 'Configure the local firewall, network profile, proxy, VPN, WWAN and metered connections.',
+        `<p><b>Network profiles</b> decide how open the PC is:</p>
+<ul><li><b>Public</b> — untrusted (cafe, hotel). Network discovery and sharing <b>off</b>.</li>
+<li><b>Private</b> — trusted (home, small office). Discovery <b>on</b>.</li>
+<li><b>Domain</b> — applied automatically when the PC can see its domain controller.</li></ul>
+<p><b>Local OS firewall (Windows Defender Firewall):</b></p>
+<ul><li>Blocks unsolicited <b>inbound</b> traffic by default. Each profile has its own on/off state.</li>
+<li><b>Exception / allow an app</b> — let one program through. <b>Restriction</b> — block one.</li>
+<li>"Advanced security" lets you write inbound/outbound rules by port, protocol and program.</li></ul>
+<p><b>Connections and options:</b></p>
+<ul><li><b>Wired</b> (Ethernet), <b>wireless</b> (Wi-Fi), <b>WWAN/cellular</b> (built-in SIM or tethered phone), <b>VPN</b> (encrypted tunnel to the office).</li>
+<li><b>Proxy settings</b> — send web traffic through a proxy server: automatic script or manual address:port.</li>
+<li><b>Metered connection</b> — tells Windows the link has a data cap: big updates and syncing pause.</li>
+<li><b>File Explorer navigation</b> — type a network path (<code>\\\\server\\share</code>) into the address bar.</li></ul>`,
+        [['Which network profile should a laptop use on hotel Wi-Fi?', 'Public', ['Private', 'Domain', 'Workgroup'], 'Public hides the PC and turns sharing off.'],
+         ['A user tethers to a phone with a small data plan. What stops Windows downloading large updates?', 'Set the connection as metered', ['Turn off the firewall', 'Use a static IP', 'Change to the Private profile'], 'Metered connections limit background data.']],
+        'c2-netfeat')
+    ],
+    wrap: { recap: ['Workgroup: local accounts on each PC. Domain: central accounts (Active Directory) and Group Policy; Pro and above.', 'UNC path \\\\server\\share; mapped drive = letter → share (net use).', 'IP, mask, gateway, DNS. Wrong gateway → local only. Wrong DNS → IP works, names fail.', 'Dynamic (DHCP) for clients; static for servers/printers; 169.254.x.x = no DHCP.', 'Profiles: Public (hidden), Private (discoverable), Domain (automatic).', 'Firewall exceptions/restrictions; proxy; VPN; WWAN; metered connections limit data.'], lab: 'c2-netfeat' }
+  });
+
+  // ===================== 1.8 macOS =====================
+  M('c2-mac', 'macOS feature finder', 'Name the feature or tool',
+    'Pick the macOS feature for each description.', ['Finder', 'Dock', 'Spotlight', 'Mission Control', 'Keychain', 'Time Machine', 'FileVault', 'Disk Utility', 'Force Quit', 'Terminal', 'Continuity', 'iCloud'],
+    [['The file manager (like File Explorer)', 'Finder', 'Always running.'],
+     ['The bar of app icons at the bottom of the screen', 'Dock', 'Launch and switch apps.'],
+     ['Search everything with Command + Space', 'Spotlight', 'Files, apps, settings, math.'],
+     ['See all open windows and multiple desktops at once', 'Mission Control', 'Manage Spaces.'],
+     ['Stores saved passwords and certificates securely', 'Keychain', 'Password manager.'],
+     ['Built-in backup to an external drive with hourly snapshots', 'Time Machine', 'Restore files or the whole Mac.'],
+     ['Full-disk encryption', 'FileVault', 'Like BitLocker.'],
+     ['Partition, erase, format or repair (First Aid) a drive', 'Disk Utility', 'Like Disk Management + chkdsk.'],
+     ['Close a frozen app with Command + Option + Esc', 'Force Quit', 'Like End task.'],
+     ['The command line (zsh shell)', 'Terminal', 'UNIX commands.'],
+     ['Start an email on the iPhone and finish it on the Mac', 'Continuity', 'Handoff between Apple devices.'],
+     ['Sync photos, files and messages across Apple devices', 'iCloud', 'Drive, iMessage, FaceTime.']],
+    'Windows ↔ Mac: File Explorer ↔ Finder, Taskbar ↔ Dock, BitLocker ↔ FileVault, Ctrl+Alt+Del/End task ↔ Force Quit.');
+  M('c2-macfiles', 'macOS files and folders', 'Installers and system folders',
+    'Pick the file type or folder.', ['.dmg', '.pkg', '.app', 'App Store', '/Applications', '/Users', '/Library', '/System', '~/Library (/Users/name/Library)'],
+    [['A disk image you open, then drag the app out of', '.dmg', 'Mounts like a virtual disk.'],
+     ['An installer package that runs a setup wizard and can place files system-wide', '.pkg', 'May ask for an admin password.'],
+     ['The application bundle itself — looks like one file, is really a folder', '.app', 'Drag to Trash to uninstall most apps.'],
+     ['Apple\'s vetted source of apps tied to an Apple ID', 'App Store', 'Automatic updates.'],
+     ['Where installed apps live', '/Applications', 'All users.'],
+     ['Where each person\'s home folder lives', '/Users', 'Documents, Desktop, Downloads.'],
+     ['System-wide settings, fonts and support files shared by all users', '/Library', 'Local domain.'],
+     ['macOS itself — protected; do not modify', '/System', 'System Integrity Protection.'],
+     ['One user\'s own preferences and app support files (hidden by default)', '~/Library (/Users/name/Library)', 'Per-user settings.']],
+    'Uninstall: drag the .app to the Trash (or use the vendor uninstaller for .pkg installs). Leftovers hide in ~/Library.');
+
+  RK.add({ track: TR, id: '1.8', dom: 1, short: 'macOS features & tools', title: 'Explain common features and tools of the macOS/desktop operating system',
+    goal: 'Install and remove Mac apps, know the system folders and settings, and use the key macOS features and tools.',
+    kw: /\b(macos|mac os|\bmac\b|apple id|\.dmg|\.pkg|\.app\b|app store|finder|\bdock\b|spotlight|mission control|keychain|time machine|filevault|disk utility|force quit|terminal\b.*mac|continuity|icloud|gestures|system preferences|system settings|rapid security response)/,
+    parts: [
+      P('Installing apps and system folders', 'Install and uninstall Mac apps and name the main system folders.',
+        `<p><b>Three installer types:</b></p>
+<ul><li><b>.dmg</b> — a disk image. Double-click to mount it, then drag the app into Applications. Eject the image afterwards.</li>
+<li><b>.pkg</b> — an installer package with a wizard. Can put files in system locations; may ask for an admin password.</li>
+<li><b>.app</b> — the application itself. It is a <i>bundle</i>: one icon that is really a folder of files.</li>
+<li><b>App Store</b> — vetted apps tied to an <b>Apple ID</b>; updates automatically.</li></ul>
+<p><b>Uninstall:</b> drag the .app from Applications to the Trash and empty it. Apps installed by a .pkg may ship their own uninstaller.</p>
+<table><tr><th>Folder</th><th>Holds</th></tr>
+<tr><td><code>/Applications</code></td><td>Installed apps</td></tr>
+<tr><td><code>/Users</code></td><td>Each user's home folder</td></tr>
+<tr><td><code>/Library</code></td><td>Settings and support files for <i>all</i> users</td></tr>
+<tr><td><code>/System</code></td><td>macOS itself (protected)</td></tr>
+<tr><td><code>/Users/name/Library</code></td><td>One user's preferences and caches (hidden)</td></tr></table>
+<p><b>Apple ID and corporate restrictions:</b> a personal Apple ID ties the Mac to the user's iCloud and purchases. Companies use <b>managed Apple IDs</b> and MDM to restrict the App Store, iCloud and settings.</p>`,
+        [['Which macOS file type is a disk image that you mount and drag an app out of?', '.dmg', ['.pkg', '.app', '.exe'], 'A .dmg mounts like a virtual drive.'],
+         ['How do you uninstall most Mac apps?', 'Drag the app from Applications to the Trash', ['Run Programs and Features', 'Delete /System', 'Use Disk Utility'], 'The .app bundle holds almost everything.']],
+        'c2-macfiles'),
+      P('System settings and best practices', 'Find macOS settings and apply backup, antivirus and update best practices.',
+        `<p><b>System Preferences</b> (called <b>System Settings</b> on newer macOS) is the Mac's Settings app. Panes to know:</p>
+<ul><li><b>Displays</b> — resolution, arrangement of multiple monitors.</li>
+<li><b>Networks</b> — Wi-Fi, Ethernet, VPN, DNS, proxies.</li>
+<li><b>Printers &amp; Scanners</b> — add or remove devices.</li>
+<li><b>Privacy / Security</b> — app permissions (camera, mic, full disk access), FileVault, firewall.</li>
+<li><b>Accessibility</b> — VoiceOver, zoom, display contrast.</li>
+<li><b>Time Machine</b> — backups.</li></ul>
+<p><b>Best practices:</b></p>
+<ul><li><b>Backups</b> — <b>Time Machine</b> saves hourly snapshots to an external or network drive. You can restore one file or the whole Mac.</li>
+<li><b>Antivirus</b> — Macs do get malware. macOS has built-in protection (Gatekeeper, XProtect); businesses add endpoint security.</li>
+<li><b>Updates/patches</b> — Software Update installs macOS and security updates.</li>
+<li><b>Rapid Security Response (RSR)</b> — small, urgent security fixes Apple ships between normal updates, often without a full restart.</li></ul>`,
+        [['Which macOS feature makes automatic hourly backups to an external drive?', 'Time Machine', ['FileVault', 'Keychain', 'Mission Control'], 'Time Machine is the built-in backup.'],
+         ['What is a Rapid Security Response?', 'A small urgent security fix released between regular macOS updates', ['A backup snapshot', 'An antivirus scan', 'A remote wipe command'], 'It patches quickly without a full OS update.']]),
+      P('Features and tools', 'Use Finder, Dock, Spotlight, Mission Control, Keychain, iCloud, Disk Utility, FileVault, Terminal and Force Quit.',
+        `<table><tr><th>Feature</th><th>What it is</th><th>Windows equivalent</th></tr>
+<tr><td><b>Finder</b></td><td>File manager</td><td>File Explorer</td></tr>
+<tr><td><b>Dock</b></td><td>App launcher bar</td><td>Taskbar</td></tr>
+<tr><td><b>Spotlight</b> (⌘ + Space)</td><td>Search everything</td><td>Windows Search</td></tr>
+<tr><td><b>Mission Control</b> / <b>multiple desktops</b></td><td>Overview of windows and Spaces</td><td>Task View / virtual desktops</td></tr>
+<tr><td><b>Keychain</b></td><td>Saved passwords and certificates</td><td>Credential Manager</td></tr>
+<tr><td><b>iCloud</b></td><td>iMessage, FaceTime, Drive sync</td><td>OneDrive + Microsoft account</td></tr>
+<tr><td><b>Continuity</b></td><td>Handoff of work/calls between Apple devices</td><td>Phone Link</td></tr>
+<tr><td><b>Gestures</b></td><td>Trackpad swipes and pinches</td><td>Touchpad gestures</td></tr>
+<tr><td><b>Disk Utility</b></td><td>Erase, partition, <i>First Aid</i> repair</td><td>Disk Management + chkdsk</td></tr>
+<tr><td><b>FileVault</b></td><td>Full-disk encryption</td><td>BitLocker</td></tr>
+<tr><td><b>Terminal</b></td><td>Command line (zsh)</td><td>Command Prompt / PowerShell</td></tr>
+<tr><td><b>Force Quit</b> (⌘ + ⌥ + Esc)</td><td>Kill a frozen app</td><td>Task Manager → End task</td></tr></table>
+<div class="callout pro"><b class="k">On the job</b> A locked Keychain causes endless password prompts after a password reset. Fix: update or reset the login keychain.</div>`,
+        [['A Mac app is frozen and will not close. What do you use?', 'Force Quit (Command + Option + Esc)', ['Disk Utility', 'Mission Control', 'Spotlight'], 'Force Quit ends the hung app.'],
+         ['Which macOS tool encrypts the entire startup disk?', 'FileVault', ['Time Machine', 'Keychain', 'Finder'], 'FileVault is full-disk encryption.']],
+        'c2-mac')
+    ],
+    wrap: { recap: ['.dmg = disk image (drag app out). .pkg = installer wizard. .app = the application bundle. App Store uses an Apple ID.', 'Uninstall: drag the .app to the Trash.', '/Applications, /Users, /Library (all users), /System (protected), ~/Library (one user).', 'System Preferences/Settings: Displays, Networks, Printers & Scanners, Privacy, Accessibility, Time Machine.', 'Time Machine = backup. FileVault = disk encryption. Keychain = passwords. Disk Utility = disks + First Aid.', 'Finder, Dock, Spotlight, Mission Control, Continuity, iCloud, Terminal, Force Quit. RSR = fast security fixes.'], lab: 'c2-mac' }
+  });
+
+  // ===================== 1.9 Linux =====================
+  T('c2-lnx-files', 'Linux files and permissions', 'ls, pwd, cp, mv, rm, chmod, chown, grep, find',
+    'You are logged in to an Ubuntu workstation as <b>tech</b>. Linux commands and file names are <b>case-sensitive</b>.',
+    { shell: 'bash', prompt: 'tech@ws-lin01:~$' },
+    [{ t: 'Print the full path of the directory you are in.', accept: [/^pwd$/], show: 'pwd', hint: 'Print working directory.', out: '/home/tech', why: 'pwd = print working directory.' },
+     { t: 'List this directory in <b>long</b> format, including <b>hidden</b> files.', accept: [/^ls -(la|al)$/, /^ls -l -a$/, /^ls -a -l$/], show: 'ls -la', hint: 'ls with -l (long) and -a (all).', out: 'total 28\ndrwxr-x--- 4 tech tech 4096 Nov 14 09:02 .\ndrwxr-xr-x 3 root root 4096 Oct  2 11:40 ..\n-rw-r--r-- 1 tech tech  220 Oct  2 11:40 .bashrc\n-rwxr--r-- 1 tech tech  412 Nov 14 08:55 backup.sh\n-rw-r--r-- 1 root root 1893 Nov 13 17:20 inventory.csv\ndrwxr-xr-x 2 tech tech 4096 Nov 12 10:11 scripts', ask: { q: 'Who is the owner of inventory.csv?', accept: ['root'], why: 'Columns: permissions, links, owner, group, size, date, name. root owns it, so tech can read it but not change it.' }, why: 'ls -la shows permissions, owner, group and hidden dot-files.' },
+     { t: 'Copy <b>backup.sh</b> into the <b>scripts</b> directory.', accept: [/^cp backup\.sh scripts\/?$/, /^cp \.\/backup\.sh \.?\/?scripts\/?$/, /^cp backup\.sh scripts\/backup\.sh$/], show: 'cp backup.sh scripts/', hint: 'cp source destination.', out: '', why: 'cp copies; the original stays.' },
+     { t: 'Rename <b>inventory.csv</b> to <b>inventory-old.csv</b>. You do not own it, so run the command with administrator rights.', accept: [/^sudo mv inventory\.csv inventory-old\.csv$/], show: 'sudo mv inventory.csv inventory-old.csv', hint: 'mv renames (and moves). Put sudo in front to run it as root.', out: '[sudo] password for tech: ********', why: 'mv moves or renames. sudo runs one command as root.' },
+     { t: 'Make <b>scripts/backup.sh</b> readable, writable and executable by the owner, and read + execute for group and others (numeric mode).', accept: [/^chmod 755 scripts\/backup\.sh$/, /^chmod 0755 scripts\/backup\.sh$/], show: 'chmod 755 scripts/backup.sh', hint: 'r=4 w=2 x=1. Owner 4+2+1, group 4+1, others 4+1.', out: '', why: '755 = rwx r-x r-x. The classic mode for a script.' },
+     { t: 'Change the <b>owner</b> of inventory-old.csv to the user <b>tech</b> (needs admin rights).', accept: [/^sudo chown tech(:tech)? inventory-old\.csv$/], show: 'sudo chown tech inventory-old.csv', hint: 'chown = change owner: chown user file.', out: '', why: 'chown changes the owner (user:group changes both).' },
+     { t: 'Search inside <b>inventory-old.csv</b> for lines containing the word <b>laptop</b>.', accept: [/^grep (-i )?['"]?laptop['"]? inventory-old\.csv$/], show: 'grep laptop inventory-old.csv', hint: 'grep pattern file.', out: 'A1042,laptop,Latitude 5440,jsmith\nA1077,laptop,ThinkPad T14,mlopez', why: 'grep prints lines that match a pattern.' },
+     { t: 'Find every file under <b>/home/tech</b> whose name ends in <b>.sh</b>.', accept: [/^find (\/home\/tech|~|\.)\/? -name ['"]?\*\.sh['"]?$/], show: 'find /home/tech -name "*.sh"', hint: 'find where -name "pattern".', out: '/home/tech/backup.sh\n/home/tech/scripts/backup.sh', why: 'find searches a directory tree by name, type, size or date.' },
+     { t: 'Delete the original <b>backup.sh</b> in your home directory (the copy in scripts stays).', accept: [/^rm (\.\/)?backup\.sh$/, /^rm ~\/backup\.sh$/, /^rm \/home\/tech\/backup\.sh$/], show: 'rm backup.sh', hint: 'rm = remove.', out: '', why: 'rm deletes immediately — there is no Recycle Bin.' }],
+    'Permissions read in threes: owner, group, others. r=4, w=2, x=1. 755 = rwxr-xr-x, 644 = rw-r--r--.',
+    ['Linux is case-sensitive and uses forward slashes.']);
+  T('c2-lnx-admin', 'Linux admin and network checks', 'apt, df, du, ps, top, ip, ping, dig, cat, man',
+    'A user says their Ubuntu PC is "full and slow" and cannot reach a web server. Investigate from the terminal.',
+    { shell: 'bash', prompt: 'tech@ws-lin01:~$' },
+    [{ t: 'Show disk <b>free space</b> for every mounted filesystem in human-readable sizes.', accept: [/^df -h$/, /^df -hT$/, /^df -Th$/], show: 'df -h', hint: 'df = disk free; -h = human-readable.', out: 'Filesystem      Size  Used Avail Use% Mounted on\n/dev/nvme0n1p2  234G  221G  1.2G 100% /\n/dev/nvme0n1p1  511M  6.1M  505M   2% /boot/efi', ask: { q: 'What percentage of / is used?', accept: ['100', '100%'], why: 'The root filesystem is full — that alone can make a system slow and break updates.' }, why: 'df shows free space per filesystem.' },
+     { t: 'Show the total size of the <b>/var/log</b> directory (summary, human-readable; needs admin rights).', accept: [/^sudo du -sh \/var\/log\/?$/, /^sudo du -hs \/var\/log\/?$/], show: 'sudo du -sh /var/log', hint: 'du = disk usage; -s summary, -h human-readable.', out: '187G\t/var/log', why: 'du shows how much space a directory uses. The logs are eating the disk.' },
+     { t: 'List <b>all</b> running processes with full details (BSD style).', accept: [/^ps aux$/, /^ps -aux$/, /^ps -ef$/], show: 'ps aux', hint: 'ps with a, u and x.', out: 'USER   PID %CPU %MEM COMMAND\nroot     1  0.0  0.1 /sbin/init\ntech  4821 98.7  2.1 /opt/sync/syncd --verbose\ntech  5033  0.3  1.0 /usr/bin/gnome-shell', ask: { q: 'What is the PID of the process using almost all the CPU?', accept: ['4821'], why: 'syncd is spinning at 98.7% CPU and (with --verbose) is what is filling /var/log.' }, why: 'ps is a snapshot of processes; top is the live view.' },
+     { t: 'Refresh the package list from the software repositories (needs admin rights).', accept: [/^sudo apt(-get)? update$/], show: 'sudo apt update', hint: 'apt is the Debian/Ubuntu package manager.', out: 'Hit:1 http://archive.ubuntu.com/ubuntu noble InRelease\nReading package lists... Done\n12 packages can be upgraded. Run \'apt list --upgradable\' to see them.', why: 'apt update refreshes the list; apt upgrade installs the updates. (dnf does both jobs on Red Hat/Fedora.)' },
+     { t: 'Show this PC\'s network addresses with the modern Linux tool.', accept: [/^ip a(ddr)?( show)?$/, /^ip -br a(ddr)?$/], show: 'ip addr', hint: 'The ip command, then addr.', out: '2: enp0s3: <BROADCAST,MULTICAST,UP,LOWER_UP>\n    inet 10.20.30.61/24 brd 10.20.30.255 scope global dynamic enp0s3', why: 'ip addr replaces the old ifconfig.' },
+     { t: 'Send exactly <b>3</b> pings to <b>10.20.30.1</b>.', accept: [/^ping -c ?3 10\.20\.30\.1$/, /^ping 10\.20\.30\.1 -c ?3$/], show: 'ping -c 3 10.20.30.1', hint: 'Linux ping runs forever unless you give it a count with -c.', out: '64 bytes from 10.20.30.1: icmp_seq=1 ttl=64 time=0.41 ms\n64 bytes from 10.20.30.1: icmp_seq=2 ttl=64 time=0.38 ms\n64 bytes from 10.20.30.1: icmp_seq=3 ttl=64 time=0.40 ms\n3 packets transmitted, 3 received, 0% packet loss', why: 'ping -c sets the count; Ctrl+C stops an endless ping.' },
+     { t: 'Look up the DNS record for <b>web01.corp.local</b> with the Linux DNS tool.', accept: [/^dig web01\.corp\.local( a)?$/i, /^dig \+short web01\.corp\.local$/i], show: 'dig web01.corp.local', hint: 'Three letters; the Linux cousin of nslookup.', out: ';; ANSWER SECTION:\nweb01.corp.local.   3600  IN  A  10.20.40.80\n\n;; SERVER: 10.20.30.5#53', why: 'dig queries DNS and shows the answer and which server replied.' },
+     { t: 'Display the file that lists which DNS servers this machine uses.', accept: [/^cat \/etc\/resolv\.conf$/], show: 'cat /etc/resolv.conf', hint: 'cat prints a file. The file is in /etc and its name starts with "resolv".', out: 'nameserver 10.20.30.5\nsearch corp.local', why: '/etc/resolv.conf holds the DNS servers.' },
+     { t: 'Open the manual page for the <b>chmod</b> command.', accept: [/^man chmod$/], show: 'man chmod', hint: 'man = manual.', out: 'CHMOD(1)                User Commands\n\nNAME\n       chmod - change file mode bits\n\nSYNOPSIS\n       chmod [OPTION]... MODE[,MODE]... FILE...', why: 'man is the built-in help for every command (q to quit).' }],
+    'You proved the cause: a runaway process (PID 4821) logging verbosely filled the disk. Next steps would be stopping it (kill 4821 or systemctl stop) and clearing the logs.',
+    ['df = whole filesystems, du = one directory. ps = snapshot, top = live.']);
+  M('c2-lnx-conf', 'Linux files and components', '/etc files, systemd, kernel, bootloader, root',
+    'Pick the file or component.', ['/etc/passwd', '/etc/shadow', '/etc/hosts', '/etc/fstab', '/etc/resolv.conf', 'systemd', 'Kernel', 'Bootloader (GRUB)', 'root', 'nano'],
+    [['List of user accounts (name, UID, home directory, shell)', '/etc/passwd', 'World-readable; no passwords inside.'],
+     ['Hashed passwords; readable only by root', '/etc/shadow', 'Password hashes and aging.'],
+     ['Local name-to-IP table checked before DNS', '/etc/hosts', 'Static name entries.'],
+     ['Which filesystems mount automatically at boot', '/etc/fstab', 'Filesystem table.'],
+     ['Which DNS servers to query', '/etc/resolv.conf', 'nameserver lines.'],
+     ['Starts and manages services (systemctl start/stop/enable)', 'systemd', 'The init system, PID 1.'],
+     ['The core of the OS that talks to hardware', 'Kernel', 'Linux itself.'],
+     ['Loads the kernel at power-on and shows the boot menu', 'Bootloader (GRUB)', 'First software after firmware.'],
+     ['The all-powerful administrator account (UID 0)', 'root', 'Use sudo instead of logging in as root.'],
+     ['Simple terminal text editor (Ctrl+O save, Ctrl+X exit)', 'nano', 'Beginner-friendly editor.']],
+    'passwd = who exists. shadow = their password hashes. hosts = names. fstab = mounts. resolv.conf = DNS.');
+
+  RK.add({ track: TR, id: '1.9', dom: 1, short: 'Linux features & tools', title: 'Identify common features and tools of the Linux client/desktop operating system',
+    goal: 'Use the exam\'s Linux commands for files, permissions, packages, networking and information, and know the key config files and OS components.',
+    kw: /\b(linux|ubuntu|\bls\b|\bpwd\b|\bmv\b|\bcp\b|\brm\b|chmod|chown|grep|\bfind\b|fsck|\bmount\b|\bsu\b|sudo|\bapt\b|\bdnf\b|\byum\b|\bcurl\b|\bdig\b|traceroute|\bman\b|\bcat\b|\btop\b|\bps\b|\bdu\b|\bdf\b|nano|\/etc\/|passwd|shadow|fstab|resolv|systemd|systemctl|kernel|bootloader|grub|root account|bash)/,
+    parts: [
+      P('Files and navigation: ls, pwd, cp, mv, rm, find, grep', 'Move around a Linux filesystem and copy, move, delete and search files.',
+        `<p>Linux has one tree starting at <code>/</code> (root). No drive letters. Paths use <b>forward</b> slashes and everything is <b>case-sensitive</b>. Your home is <code>/home/yourname</code>, also written <code>~</code>.</p>
+<table><tr><th>Command</th><th>Does</th><th>Example</th></tr>
+<tr><td><code>pwd</code></td><td>Print working directory</td><td><code>pwd</code></td></tr>
+<tr><td><code>ls</code></td><td>List files</td><td><code>ls -l</code> (details) · <code>ls -a</code> (hidden) · <code>ls -la</code></td></tr>
+<tr><td><code>cp</code></td><td>Copy</td><td><code>cp a.txt backup/</code> · <code>cp -r dir1 dir2</code></td></tr>
+<tr><td><code>mv</code></td><td>Move <i>or rename</i></td><td><code>mv old.txt new.txt</code></td></tr>
+<tr><td><code>rm</code></td><td>Remove (no Recycle Bin)</td><td><code>rm file</code> · <code>rm -r folder</code></td></tr>
+<tr><td><code>find</code></td><td>Search for files</td><td><code>find /home -name "*.log"</code></td></tr>
+<tr><td><code>grep</code></td><td>Search <i>inside</i> files</td><td><code>grep error app.log</code> · <code>-i</code> ignore case</td></tr>
+<tr><td><code>cat</code></td><td>Print a file</td><td><code>cat /etc/hosts</code></td></tr>
+<tr><td><code>nano</code></td><td>Simple text editor</td><td><code>nano notes.txt</code></td></tr></table>
+<p>Files whose names start with a dot (<code>.bashrc</code>) are hidden.</p>`,
+        [['Which Linux command renames a file?', 'mv', ['cp', 'rm', 'ls'], 'mv moves or renames.'],
+         ['Which command searches for text inside files?', 'grep', ['find', 'pwd', 'cat'], 'find looks for files; grep looks inside them.']]),
+      P('Permissions and admin rights: chmod, chown, su, sudo', 'Read rwx permissions, change them with chmod/chown, and run commands as root safely.',
+        `<p><code>ls -l</code> shows something like <code>-rwxr-xr--</code>. After the first character (file type) come three groups:</p>
+<table><tr><th>Owner</th><th>Group</th><th>Others</th></tr><tr><td><code>rwx</code></td><td><code>r-x</code></td><td><code>r--</code></td></tr></table>
+<p><b>r</b>ead = 4, <b>w</b>rite = 2, e<b>x</b>ecute = 1. Add them per group: <code>rwx</code> = 7, <code>r-x</code> = 5, <code>r--</code> = 4 → <b>754</b>.</p>
+<ul><li><code>chmod 755 script.sh</code> — set permissions. Common: <b>755</b> (scripts/folders), <b>644</b> (documents), <b>600</b> (private).</li>
+<li><code>chmod +x script.sh</code> — add execute so it can run.</li>
+<li><code>chown user:group file</code> — change owner (and group).</li></ul>
+<p><b>The root account</b> (UID 0) can do anything, including destroying the system.</p>
+<ul><li><code>sudo command</code> — run <b>one</b> command as root, using <i>your</i> password. It is logged. Preferred.</li>
+<li><code>su</code> — <b>switch user</b>; <code>su -</code> becomes root until you type <code>exit</code>, using <i>root's</i> password.</li></ul>
+<div class="callout trap"><b class="k">Exam trap</b> "Permission denied" when running your own script → it is missing execute: <code>chmod +x</code>. "Permission denied" on a system file → you need <code>sudo</code>.</div>`,
+        [['What does chmod 644 give the owner?', 'Read and write', ['Read, write and execute', 'Read only', 'Execute only'], '6 = 4 (read) + 2 (write).'],
+         ['Which command runs a single command with root privileges and logs it?', 'sudo', ['su', 'chown', 'man'], 'sudo elevates one command.']],
+        'c2-lnx-files'),
+      P('Packages, disks and system information', 'Use apt/dnf, df, du, mount, fsck, ps, top and man.',
+        `<p><b>Package management</b> — software comes from repositories:</p>
+<ul><li><b>apt</b> (Debian, Ubuntu, Mint): <code>sudo apt update</code> (refresh list) → <code>sudo apt upgrade</code> (install updates) · <code>sudo apt install nmap</code>.</li>
+<li><b>dnf</b> (Red Hat, Fedora, Rocky): <code>sudo dnf install nmap</code> · <code>sudo dnf upgrade</code>.</li></ul>
+<table><tr><th>Command</th><th>Shows / does</th></tr>
+<tr><td><code>df -h</code></td><td>Free space on each <i>filesystem</i></td></tr>
+<tr><td><code>du -sh folder</code></td><td>Space used by one <i>directory</i></td></tr>
+<tr><td><code>mount</code></td><td>Attach a filesystem to a folder (<code>mount /dev/sdb1 /mnt/usb</code>)</td></tr>
+<tr><td><code>fsck</code></td><td>Check and repair a filesystem (run on <b>unmounted</b> volumes) — Linux's chkdsk</td></tr>
+<tr><td><code>ps</code></td><td>Snapshot of processes (<code>ps aux</code>)</td></tr>
+<tr><td><code>top</code></td><td>Live process view — Linux's Task Manager (q quits)</td></tr>
+<tr><td><code>man</code></td><td>Manual page for any command (<code>man ls</code>)</td></tr></table>
+<p><b>OS components:</b> the <b>bootloader</b> (GRUB) loads the <b>kernel</b> (the core that controls hardware); the kernel starts <b>systemd</b>, which starts and supervises every service (<code>systemctl status ssh</code>).</p>`,
+        [['Which package manager does Ubuntu use?', 'apt', ['dnf', 'msi', 'brew'], 'Debian-family distros use apt.'],
+         ['Which command shows free space on every mounted filesystem?', 'df -h', ['du -sh', 'ps aux', 'fsck'], 'df = disk free.'],
+         ['Which Linux command gives a live, updating list of processes?', 'top', ['ps', 'cat', 'man'], 'top refreshes continuously.']],
+        'c2-lnx-admin'),
+      P('Networking and configuration files', 'Use ip, ping, curl, dig, traceroute and read the key files in /etc.',
+        `<table><tr><th>Command</th><th>Does</th><th>Windows cousin</th></tr>
+<tr><td><code>ip addr</code> / <code>ip route</code></td><td>Show IP addresses / routing table</td><td>ipconfig</td></tr>
+<tr><td><code>ping -c 4 host</code></td><td>Reachability (runs forever without <code>-c</code>)</td><td>ping</td></tr>
+<tr><td><code>dig name</code></td><td>DNS lookup</td><td>nslookup</td></tr>
+<tr><td><code>traceroute host</code></td><td>Hops along the path</td><td>tracert</td></tr>
+<tr><td><code>curl URL</code></td><td>Fetch a web page or API from the terminal; tests a web server</td><td>—</td></tr></table>
+<p><b>Configuration files</b> are plain text in <code>/etc</code>:</p>
+<table><tr><th>File</th><th>Contains</th></tr>
+<tr><td><code>/etc/passwd</code></td><td>User accounts (name, UID, home, shell) — no passwords</td></tr>
+<tr><td><code>/etc/shadow</code></td><td>Password <b>hashes</b>; root-only</td></tr>
+<tr><td><code>/etc/hosts</code></td><td>Local name → IP entries, checked before DNS</td></tr>
+<tr><td><code>/etc/fstab</code></td><td>Filesystems to mount at boot</td></tr>
+<tr><td><code>/etc/resolv.conf</code></td><td>DNS servers to use</td></tr></table>
+<div class="callout pro"><b class="k">On the job</b> A bad line in <code>/etc/fstab</code> can stop a Linux box booting. Always back the file up before editing and test with <code>mount -a</code>.</div>`,
+        [['Which file stores hashed user passwords on Linux?', '/etc/shadow', ['/etc/passwd', '/etc/hosts', '/etc/fstab'], 'passwd lists accounts; shadow holds the hashes.'],
+         ['Which Linux command is the equivalent of nslookup?', 'dig', ['curl', 'df', 'grep'], 'dig queries DNS.']],
+        'c2-lnx-conf')
+    ],
+    wrap: { recap: ['One tree from /; forward slashes; case-sensitive; ~ is your home.', 'ls, pwd, cp, mv (move/rename), rm, find (files), grep (inside files), cat, nano.', 'rwx = 4,2,1 for owner/group/others: 755, 644. chmod sets them; chown changes owner.', 'sudo = one command as root (logged). su = switch user. root = UID 0.', 'apt (Debian/Ubuntu), dnf (Red Hat). df = filesystems, du = a directory, fsck = repair, mount = attach. ps snapshot, top live, man help.', 'ip, ping -c, dig, traceroute, curl. /etc/passwd, shadow, hosts, fstab, resolv.conf. Bootloader → kernel → systemd.'], lab: 'c2-lnx-conf' }
+  });
+
+  // ===================== 1.10 Application installation =====================
+  M('c2-appreq', 'Will the app install?', 'Requirements check',
+    'An app needs: 64-bit OS, 8 GB RAM, 4 GB VRAM on a dedicated GPU, 20 GB free storage and a USB license token. Pick the result for each PC.',
+    ['Meets the requirements', 'Fails: 32-bit OS', 'Fails: not enough RAM', 'Fails: integrated graphics / VRAM', 'Fails: not enough storage', 'Fails: hardware token missing'],
+    [['64-bit Windows 11, 16 GB RAM, RTX card with 8 GB VRAM, 200 GB free, token plugged in', 'Meets the requirements', 'All boxes ticked.'],
+     ['32-bit Windows 10, 4 GB RAM', 'Fails: 32-bit OS', 'A 64-bit app cannot run on a 32-bit OS.'],
+     ['64-bit Windows 11, 4 GB RAM, RTX card 8 GB VRAM, 100 GB free, token present', 'Fails: not enough RAM', 'Needs 8 GB.'],
+     ['64-bit Windows 11, 16 GB RAM, Intel integrated graphics, 100 GB free, token present', 'Fails: integrated graphics / VRAM', 'Integrated GPUs share system RAM; no dedicated VRAM.'],
+     ['64-bit Windows 11, 16 GB RAM, dedicated 6 GB GPU, 9 GB free, token present', 'Fails: not enough storage', 'Needs 20 GB.'],
+     ['64-bit Windows 11, 32 GB RAM, dedicated 8 GB GPU, 500 GB free, no USB key', 'Fails: hardware token missing', 'The licensing dongle is required.']],
+    'A 64-bit OS can run 32-bit apps, but a 32-bit OS cannot run 64-bit apps.');
+  M('c2-appimpact', 'Impact of a new application', 'Device, network, operation, business',
+    'A company plans to roll out a new video-conferencing app to 500 PCs. Classify each concern.', ['Impact to device', 'Impact to network', 'Impact to operation', 'Impact to business'],
+    [['Older laptops will run hot and slow while the app is open', 'Impact to device', 'CPU, RAM, storage, battery.'],
+     ['HD video for 500 users may saturate the Internet link', 'Impact to network', 'Bandwidth and firewall ports.'],
+     ['Help desk needs training and users need a how-to guide', 'Impact to operation', 'Support, training, workflow.'],
+     ['Licensing costs $40,000 a year and meetings stop if the service is down', 'Impact to business', 'Cost, risk, productivity.'],
+     ['The installer needs 6 GB on each PC\'s small SSD', 'Impact to device', 'Storage.'],
+     ['Firewall rules must allow new outbound ports', 'Impact to network', 'Network change.']],
+    'Before any rollout, ask: what does it do to the device, the network, daily operations and the business?');
+
+  RK.add({ track: TR, id: '1.10', dom: 1, short: 'Application installation', title: 'Given a scenario, install applications according to requirements',
+    goal: 'Check system requirements, choose a distribution method, and think through the impact of a new application.',
+    kw: /\b(32.bit|64.bit|x86\b|dedicated (graphics|gpu)|integrated graphics|vram|system requirement|hardware token|dongle|\biso\b|mountable|physical media|downloadable|distribution method|impact to|application install|install(ing)? (an |the )?app)/,
+    parts: [
+      P('System requirements', 'Check an application\'s requirements against a PC: 32/64-bit, CPU, RAM, GPU/VRAM, storage, tokens and OS.',
+        `<p>Before installing, compare the app's <b>minimum requirements</b> with the PC.</p>
+<ul><li><b>32-bit vs 64-bit</b> — a 64-bit OS runs both 64-bit and 32-bit apps. A 32-bit OS runs <b>only</b> 32-bit apps and can use only about 4 GB of RAM. (32-bit is also called <b>x86</b>; 64-bit is <b>x64</b>.)</li>
+<li><b>CPU</b> — minimum speed/cores, sometimes specific features.</li>
+<li><b>RAM</b> — memory the app needs in addition to the OS.</li>
+<li><b>Dedicated vs integrated graphics</b> — a <b>dedicated</b> card has its own memory (<b>VRAM</b>) and is far faster. <b>Integrated</b> graphics are built into the CPU and borrow system RAM. CAD, video editing and games often demand dedicated graphics with a minimum VRAM.</li>
+<li><b>Storage</b> — free space to install and to work.</li>
+<li><b>External hardware tokens</b> — a USB license key (dongle) or security key the app needs to run.</li>
+<li><b>Application-to-OS compatibility</b> — the app must support this OS and version.</li></ul>
+<p>Check a PC quickly: <b>Settings → System → About</b> (CPU, RAM, 64-bit) and <code>msinfo32</code>; GPU and VRAM in Task Manager → Performance → GPU.</p>`,
+        [['Which statement about 32-bit and 64-bit is true?', 'A 64-bit OS can run 32-bit apps, but a 32-bit OS cannot run 64-bit apps', ['A 32-bit OS can run 64-bit apps slowly', '32-bit and 64-bit apps are interchangeable', 'A 64-bit OS cannot run 32-bit apps'], '64-bit is backward compatible.'],
+         ['A CAD program requires 4 GB of VRAM. What must the PC have?', 'A dedicated graphics card with at least 4 GB of its own memory', ['4 GB more system RAM', 'A 4 GB flash drive', 'Integrated graphics'], 'VRAM is the graphics card\'s memory.']],
+        'c2-appreq'),
+      P('Distribution methods and impact', 'Choose how software is delivered and weigh its impact on device, network, operation and business.',
+        `<p><b>Distribution methods:</b></p>
+<ul><li><b>Physical media</b> — DVD or USB from the vendor. Rare today; needs a drive.</li>
+<li><b>Mountable ISO file</b> — a disk image of the media. Double-click in Windows to mount it as a virtual drive; no physical disc needed.</li>
+<li><b>Downloadable package</b> — an installer from the vendor's site or an app store (.exe/.msi on Windows). Download only from the official source and verify it.</li>
+<li><b>Image deployment</b> — the app is baked into the OS image, or pushed by management software to many PCs at once.</li></ul>
+<p><b>Other considerations for new applications — impact to:</b></p>
+<table><tr><th>Area</th><th>Ask</th></tr>
+<tr><td><b>Device</b></td><td>Will it slow the PC, fill the drive, drain the battery, conflict with other software?</td></tr>
+<tr><td><b>Network</b></td><td>How much bandwidth? New firewall ports? Does it scan or broadcast?</td></tr>
+<tr><td><b>Operation</b></td><td>Do users and the help desk need training? Does it change a workflow?</td></tr>
+<tr><td><b>Business</b></td><td>Cost and licensing, compliance, what happens if it fails?</td></tr></table>
+<div class="callout pro"><b class="k">On the job</b> Installing needs administrator rights. Standard users see a UAC prompt — that is by design, and it is why "can you install this for me?" is a daily ticket.</div>`,
+        [['What is an ISO file?', 'A disk image that can be mounted as a virtual drive', ['A compressed photo', 'A driver package', 'A license key'], 'ISO = an image of an optical disc.'],
+         ['A new app will use a lot of bandwidth for video. Which impact area is that?', 'Impact to network', ['Impact to device', 'Impact to business', 'Impact to operation'], 'Bandwidth and ports are network impacts.']],
+        'c2-appimpact')
+    ],
+    wrap: { recap: ['64-bit OS runs 32- and 64-bit apps; 32-bit OS runs only 32-bit and ~4 GB RAM.', 'Check CPU, RAM, storage, and dedicated GPU/VRAM vs integrated graphics.', 'External hardware tokens (USB license/security keys) may be required.', 'Distribution: physical media, mountable ISO, downloadable package, image deployment.', 'Download only from trusted sources; installing needs admin rights.', 'Weigh impact to device, network, operation and business before rollout.'], lab: 'c2-appimpact' }
+  });
+
+  // ===================== 1.11 Cloud productivity tools =====================
+  M('c2-cloud', 'Cloud productivity help desk', 'Email, storage, collaboration, identity, licensing',
+    'Pick the area each ticket belongs to.', ['License assignment', 'Identity synchronization', 'Storage sync settings', 'Email system', 'Collaboration tools'],
+    [['New hire can sign in to the portal but sees "You don\'t have a license to use this product" in the desktop apps', 'License assignment', 'Assign a license to the account.'],
+     ['User changed their password on the domain PC but the cloud still wants the old one', 'Identity synchronization', 'Directory sync has not run or is failing.'],
+     ['A folder shows a cloud icon and will not open on a plane with no Internet', 'Storage sync settings', 'Files are online-only; mark "Always keep on this device".'],
+     ['Outlook on a new laptop needs to be connected to the user\'s hosted mailbox', 'Email system', 'Add the account; it autodiscovers.'],
+     ['Team wants to edit one spreadsheet together and chat while doing it', 'Collaboration tools', 'Co-authoring and instant messaging.'],
+     ['A disabled employee\'s account is still active in the cloud suite', 'Identity synchronization', 'Account state must sync from the directory.'],
+     ['The sync app is uploading the whole Downloads folder over a slow link', 'Storage sync settings', 'Choose which folders sync.']],
+    'Most cloud-suite tickets are one of three things: no license, identity not synced, or sync settings.');
+
+  RK.add({ track: TR, id: '1.11', dom: 1, short: 'Cloud productivity tools', title: 'Given a scenario, install and configure cloud-based productivity tools',
+    goal: 'Set up cloud email, storage sync and collaboration tools, and fix identity-sync and license problems.',
+    kw: /\b(cloud.based|productivity (tool|suite)|microsoft 365|office 365|google workspace|onedrive|sharepoint|\bteams\b|videoconferenc|instant messag|collaboration|co.author|identity sync|license assign|sync(hroniz)?(e|ation)? (settings|folder|client)|files on.demand|hosted (mail|email)|exchange online)/,
+    parts: [
+      P('Email, storage and collaboration', 'Install and configure cloud email, file sync and collaboration apps.',
+        `<p>Most companies now rent their office tools as a cloud suite (<b>Microsoft 365</b> or <b>Google Workspace</b>). One account unlocks everything.</p>
+<ul><li><b>Email systems</b> — the mailbox lives in the cloud (Exchange Online, Gmail). Users reach it by web browser or a client such as Outlook. Adding the account usually needs only the email address: settings are found automatically.</li>
+<li><b>Storage</b> — OneDrive, SharePoint, Google Drive. A <b>sync client</b> keeps a local folder matched with the cloud.
+<ul><li><b>Sync/folder settings</b>: choose which folders sync. <i>Online-only</i> files (cloud icon) save disk space but need Internet; <i>Always keep on this device</i> (green tick) works offline.</li>
+<li>Known-folder backup redirects Desktop/Documents/Pictures to the cloud.</li></ul></li>
+<li><b>Collaboration tools</b>:
+<ul><li><b>Spreadsheets, word processing, presentations</b> — several people edit one file at once (co-authoring) with version history.</li>
+<li><b>Videoconferencing</b> — Teams, Zoom, Meet: check camera/mic permissions and bandwidth.</li>
+<li><b>Instant messaging</b> — chat, channels, presence.</li></ul></li></ul>
+<div class="callout pro"><b class="k">On the job</b> "My file is gone" in a synced folder → check the cloud recycle bin and <b>version history</b> before anything else.</div>`,
+        [['A synced file shows a cloud icon and cannot be opened without Internet. Why?', 'It is online-only and not stored on the device', ['The license expired', 'The file is corrupted', 'The user lacks admin rights'], 'Mark it "Always keep on this device" for offline use.'],
+         ['Which feature lets several people edit the same document at the same time?', 'Co-authoring in a cloud collaboration tool', ['Mapped drives', 'Email attachments', 'Disk mirroring'], 'Cloud suites support simultaneous editing.']]),
+      P('Identity synchronization and licensing', 'Explain identity sync between the directory and the cloud, and assign licenses.',
+        `<p><b>Identity synchronization</b> — the company's on-premises directory (Active Directory) is copied to the cloud directory (for example Microsoft Entra ID) on a schedule. Result: users sign in to cloud apps with the <b>same username and password</b> as their PC, often with <b>single sign-on</b>.</p>
+<ul><li>A password change, a new user or a disabled account must <b>sync</b> before the cloud sees it. If it has not, the user gets the old behavior.</li>
+<li>Typical fix: wait for or trigger the sync, and check the sync health in the admin portal.</li></ul>
+<p><b>License assignment</b> — having an account is not enough. An admin must <b>assign a license</b> (a subscription seat) to the user before the apps and mailbox work.</p>
+<ul><li>Symptoms of a missing license: no mailbox, apps in reduced-functionality/read-only mode, "You don't have a license" messages.</li>
+<li>Licenses are often assigned by <b>group</b>, so adding the user to the right group fixes it.</li>
+<li>When someone leaves: block sign-in, keep or transfer their data, then <b>remove the license</b> so it can be reused.</li></ul>`,
+        [['A new user has an account but the office apps open in read-only mode. What is the most likely cause?', 'No license has been assigned to the account', ['The PC needs more RAM', 'The firewall is blocking email', 'The sync folder is full'], 'Assign a subscription license.'],
+         ['What does identity synchronization provide?', 'The same sign-in credentials on-premises and in the cloud', ['Faster Wi-Fi', 'Automatic backups of every PC', 'Free licenses'], 'It copies directory accounts to the cloud directory.']],
+        'c2-cloud')
+    ],
+    wrap: { recap: ['Cloud suites (Microsoft 365, Google Workspace): email, storage, collaboration under one account.', 'Sync clients match a local folder with the cloud; choose which folders sync.', 'Online-only files need Internet; "Always keep on this device" works offline.', 'Collaboration: co-authoring docs/sheets/slides, videoconferencing, instant messaging.', 'Identity sync copies directory accounts to the cloud; changes must sync before the cloud sees them.', 'An account needs a license assigned before apps and mailbox work; remove it when the user leaves.'], lab: 'c2-cloud' }
+  });
+
+  // ===================== Domain 1 combined terminal lab =====================
+  T('c2-d1-wrap', 'Domain 1 shift: three tickets, two operating systems', 'Mixed Windows and Linux command line',
+    'You are covering the help desk. Three quick tickets — the first four tasks are on a Windows PC, the rest after you connect to a Linux workstation. No hints in the task text: this is the domain check.',
+    { shell: 'cmd', prompt: 'C:\\Windows\\System32>' },
+    [{ t: '<b>Ticket 1 (Windows):</b> "What version am I on?" — Show the Windows version and build.', accept: [/^winver$/i], show: 'winver', hint: 'Objective 1.5, informational commands.', out: '[About Windows]\nWindows 11 Pro   Version 24H2 (OS Build 26100.2314)', why: '1.5 — winver.' },
+     { t: '<b>Ticket 1:</b> The PC has an address starting 169.254. Ask DHCP for a new lease.', accept: [/^ipconfig ?\/renew$/i], show: 'ipconfig /renew', hint: 'ipconfig with the switch that renews.', out: 'Ethernet adapter Ethernet:\n   IPv4 Address. . . . . . . . : 10.20.30.57\n   Subnet Mask . . . . . . . . : 255.255.255.0\n   Default Gateway . . . . . . : 10.20.30.1', why: '1.5/1.7 — APIPA means no DHCP answer; /renew asks again.' },
+     { t: '<b>Ticket 2 (Windows):</b> Random crashes after a power cut. Verify and repair Windows system files.', accept: [/^sfc ?\/scannow$/i], show: 'sfc /scannow', hint: 'System File Checker.', out: 'Verification 100% complete.\nWindows Resource Protection did not find any integrity violations.', why: '1.5 — sfc checks system files. Clean result → look at the disk next.' },
+     { t: '<b>Ticket 2:</b> Open the tool that shows the System log so you can look for disk errors.', accept: [/^eventvwr(\.msc|\.exe)?$/i], show: 'eventvwr.msc', hint: 'Objective 1.4 — the log viewer\'s run name.', out: '[Event Viewer opened]\nWindows Logs > System\n  Warning  disk  Event ID 153  The IO operation at logical block address was retried.', why: '1.4 — Event ID 153 warns of disk I/O problems: back up and run chkdsk /r.' },
+     { t: '<b>Ticket 3 (Linux):</b> Connect to the Linux workstation <b>ws-lin01</b> as user <b>tech</b> using the secure remote shell.', accept: [/^ssh tech@ws-lin01$/i, /^ssh -l tech ws-lin01$/i], show: 'ssh tech@ws-lin01', hint: 'ssh user@host (covered in depth in objective 4.9).', out: 'tech@ws-lin01\'s password: ********\nWelcome to Ubuntu 24.04 LTS', prompt: 'tech@ws-lin01:~$', shell: 'bash', why: 'ssh user@host opens an encrypted terminal on another machine (TCP 22).' },
+     { t: '<b>Ticket 3:</b> The user\'s script will not run: "Permission denied". Show the long listing for <b>report.sh</b>.', accept: [/^ls -la? report\.sh$/, /^ls -al report\.sh$/], show: 'ls -l report.sh', hint: 'ls in long format, then the file name.', out: '-rw-r--r-- 1 tech tech 310 Nov 15 14:02 report.sh', ask: { q: 'Which permission is missing for the owner? (read, write or execute)', accept: ['execute', 'x'], why: 'rw- for the owner: no x, so the shell refuses to run it.' }, why: '1.9 — read the permission string before guessing.' },
+     { t: '<b>Ticket 3:</b> Add execute permission to <b>report.sh</b>.', accept: [/^chmod \+x report\.sh$/, /^chmod u\+x report\.sh$/, /^chmod 7[0-7][0-7] report\.sh$/, /^chmod a\+x report\.sh$/], show: 'chmod +x report.sh', hint: 'chmod with +x.', out: '', why: '1.9 — chmod +x makes a script runnable.' },
+     { t: '<b>Ticket 3:</b> Before you leave, check how full the disks are (human-readable).', accept: [/^df -h$/], show: 'df -h', hint: 'Disk free.', out: 'Filesystem      Size  Used Avail Use% Mounted on\n/dev/nvme0n1p2  234G   88G  135G  40% /', why: '1.9 — df -h. 40% used: healthy.' }],
+    'That was every command-line skill in Domain 1: Windows informational, network and repair commands, the snap-in run names, and Linux permissions. If any task needed the answer shown, flip back to 1.4, 1.5 or 1.9 before the domain test.',
+    ['Each task names its objective in the takeaway. Flip back to that objective if you are stuck.']);
+})();
+
+;
+/* A+ Core 2 Domain 1 — extra objective-test questions and flashcards (not used as quick checks). */
+(function () {
+  var RK = window.RK, TR = 'core2';
+  RK.extra(TR, '1.3', [
+    ['Which Windows edition supports up to 6 TB of RAM and 4 physical CPUs?', 'Pro for Workstations', ['Home', 'Pro', 'Home N'], 'It targets high-end workstation hardware.'],
+    ['A small business wants BitLocker on its laptops. What is the minimum edition?', 'Pro', ['Home', 'Enterprise', 'Pro for Workstations'], 'BitLocker starts at Pro.'],
+    ['What is the maximum RAM supported by 64-bit Windows 11 Home?', '128 GB', ['4 GB', '2 TB', '6 TB'], 'Home tops out at 128 GB.'],
+    ['Which security chip version does Windows 11 require?', 'TPM 2.0', ['TPM 1.2', 'HSM 1.0', 'No TPM is required'], 'TPM 2.0 is mandatory.'],
+    ['A PC in a workgroup must be managed by Active Directory Group Policy. What must happen first?', 'It must run Pro or higher and be joined to the domain', ['It must be upgraded to Home N', 'It needs a second NIC', 'It must be formatted as ReFS'], 'Domain join needs Pro or above.'],
+    ['Which upgrade keeps apps, files and settings?', 'In-place upgrade', ['Clean install', 'Recovery partition reset', 'Image deployment'], 'It installs over the existing OS.'],
+    ['Minimum storage required for Windows 11?', '64 GB', ['16 GB', '32 GB', '128 GB'], '64 GB or larger.'],
+    ['Which firmware feature must a PC be capable of for Windows 11?', 'UEFI with Secure Boot', ['Legacy BIOS with MBR', 'PXE boot', 'Fast startup'], 'UEFI + Secure Boot capable.']
+  ]);
+  RK.extra(TR, '1.6', [
+    ['Where do you set a proxy server in the classic Control Panel?', 'Internet Options → Connections → LAN settings', ['Programs and Features', 'Sound', 'Indexing Options'], 'The Connections tab holds proxy settings.'],
+    ['A laptop loses unsaved work when its battery dies while "asleep". Which state would have prevented it?', 'Hibernate', ['Sleep', 'Standby', 'Screen saver'], 'Hibernate writes RAM to disk.'],
+    ['Where do you change which program opens .pdf files by default?', 'Settings → Apps → Default apps', ['Settings → Privacy', 'Settings → Gaming', 'Device Manager'], 'Default apps live under Apps.'],
+    ['Which Settings category holds Windows Update and Recovery options?', 'Update and Security', ['Personalization', 'Devices', 'Accounts'], 'Update, security, backup, recovery, activation.'],
+    ['Which utility lets you set the default playback device?', 'Sound', ['Mail', 'User Accounts', 'Indexing Options'], 'Playback and Recording tabs.'],
+    ['A dual-boot PC shows disk errors in Linux after Windows shuts down. Which Windows setting is the usual cause?', 'Fast startup', ['USB selective suspend', 'High performance plan', 'Hide extensions'], 'Fast startup leaves the Windows volume in a hibernated state.'],
+    ['A user needs to see the hidden AppData folder. Where is the setting?', 'File Explorer Options → View', ['Indexing Options', 'Internet Options', 'Power Options'], 'Show hidden files, folders and drives.'],
+    ['Which Settings category has the "About" page with device specifications?', 'System', ['Devices', 'Apps', 'Privacy'], 'System → About.'],
+    ['Where do you configure what closing a laptop lid does?', 'Power Options', ['Ease of Access', 'Personalization', 'Time and Language'], 'Choose what closing the lid does.'],
+    ['Which Control Panel item is called "Windows Tools" in Windows 11?', 'Administrative Tools', ['Devices and Printers', 'Mail', 'Sound'], 'It is the folder of admin shortcuts.']
+  ]);
+  RK.extra(TR, '1.7', [
+    ['Websites open by IP address but not by name. Which client setting is wrong?', 'DNS server', ['Default gateway', 'Subnet mask', 'MAC address'], 'DNS turns names into addresses.'],
+    ['Which type of device should normally get a static IP address?', 'A network printer or server', ['A guest laptop', 'A visitor\'s phone', 'Every desktop PC'], 'Things other devices must always find.'],
+    ['Which command maps drive P: to \\\\fs01\\projects?', 'net use P: \\\\fs01\\projects', ['map P: fs01/projects', 'cd \\\\fs01\\projects', 'ipconfig /map P:'], 'net use maps network drives.'],
+    ['What does the Private network profile turn on that Public turns off?', 'Network discovery and sharing', ['The firewall', 'DHCP', 'Encryption'], 'Private trusts the local network.'],
+    ['A new app cannot receive inbound connections. What is the correct fix?', 'Create a firewall exception for the app', ['Turn the firewall off permanently', 'Switch to a static IP', 'Set the connection as metered'], 'Allow only what is needed.'],
+    ['Which connection type uses a SIM card for Internet access?', 'WWAN (cellular)', ['Wired Ethernet', 'VPN', 'Proxy'], 'Wireless wide area network.'],
+    ['What must be true for a PC to join an Active Directory domain?', 'It runs Pro or higher and can resolve the domain through DNS', ['It runs Home edition', 'It uses the Public profile', 'It has a metered connection'], 'Edition and DNS are the usual blockers.'],
+    ['Where do you configure a manual proxy in Windows 11?', 'Settings → Network and Internet → Proxy', ['Settings → Gaming', 'Device Manager', 'Disk Management'], 'Proxy is a network setting.']
+  ]);
+  RK.extra(TR, '1.8', [
+    ['Which macOS feature searches files, apps and settings with Command + Space?', 'Spotlight', ['Finder', 'Dock', 'Keychain'], 'Spotlight is system-wide search.'],
+    ['Which macOS tool repairs a disk with "First Aid"?', 'Disk Utility', ['Time Machine', 'FileVault', 'Mission Control'], 'First Aid checks and repairs volumes.'],
+    ['Where do a single Mac user\'s app preferences live?', '/Users/name/Library', ['/System', '/Applications', '/Library'], 'The per-user Library is hidden by default.'],
+    ['Which installer type runs a setup wizard and may ask for an administrator password?', '.pkg', ['.dmg', '.app', '.iso'], 'Packages can install system-wide.'],
+    ['Which feature stores Wi-Fi and website passwords on a Mac?', 'Keychain', ['Spotlight', 'Dock', 'Disk Utility'], 'Keychain is the credential store.'],
+    ['What is the Mac equivalent of Windows File Explorer?', 'Finder', ['Dock', 'Launchpad', 'Terminal'], 'Finder manages files.']
+  ]);
+  RK.extra(TR, '1.10', [
+    ['How much RAM can a 32-bit operating system use?', 'About 4 GB', ['About 16 GB', '128 GB', 'Unlimited'], '32-bit addressing limits usable RAM.'],
+    ['A user downloads an installer from a third-party site and it installs adware. Which practice was skipped?', 'Downloading only from the vendor or a trusted source', ['Using a mountable ISO', 'Checking VRAM', 'Using a hardware token'], 'Source trust matters.'],
+    ['What do you need in order to install software on a company PC?', 'Administrator rights', ['A dedicated GPU', 'A metered connection', 'A recovery partition'], 'Standard users are blocked by UAC.'],
+    ['Which graphics type shares system RAM instead of having its own memory?', 'Integrated graphics', ['Dedicated graphics', 'External GPU', 'Capture card'], 'Integrated GPUs borrow RAM.'],
+    ['An app requires a USB security key to launch. What is this called?', 'An external hardware token', ['A mountable ISO', 'A recovery partition', 'A feature update'], 'Also called a dongle.'],
+    ['Pushing an app to 300 PCs at once with management software is which distribution method?', 'Image/automated deployment', ['Physical media', 'Manual download', 'Sideloading'], 'Central deployment at scale.'],
+    ['A new app needs staff retraining. Which impact area is that?', 'Impact to operation', ['Impact to device', 'Impact to network', 'Impact to hardware'], 'Operations = people and process.'],
+    ['Before a company-wide rollout, what is the safest first step?', 'Test the application on a small pilot group', ['Install on every PC at once', 'Disable antivirus', 'Format the test PCs as FAT32'], 'Pilot first.'],
+    ['Which term means "32-bit" on the exam?', 'x86', ['x64', 'ARM64', 'UEFI'], 'x86 = 32-bit; x64 = 64-bit.']
+  ]);
+  RK.extra(TR, '1.11', [
+    ['A user deleted a synced file by mistake last week. Where do you look first?', 'The cloud recycle bin / version history', ['Disk Management', 'Device Manager', '/etc/fstab'], 'Cloud storage keeps deleted items and versions.'],
+    ['What should happen to a departing employee\'s license?', 'Remove it so it can be reassigned', ['Leave it forever', 'Give it to a printer', 'Convert it to a guest'], 'Licenses cost money per seat.'],
+    ['Video calls are choppy for one user. What should you check on their PC first?', 'Camera/microphone permissions, bandwidth and other apps using the network', ['The BIOS date', 'The recovery partition', 'The filesystem type'], 'Conferencing depends on devices and bandwidth.'],
+    ['A user has two sync clients filling a small SSD. Which setting helps most?', 'Make files online-only / choose which folders sync', ['Disable the firewall', 'Switch to a static IP', 'Turn off co-authoring'], 'Selective sync saves space.'],
+    ['Which is an example of a cloud-based collaboration tool?', 'A shared online spreadsheet several people edit together', ['A local Notepad file', 'A USB flash drive', 'A BIOS setting'], 'Real-time shared editing.'],
+    ['A password was changed on-premises but the cloud portal rejects it. What is the likely cause?', 'Identity synchronization has not completed', ['The license expired', 'The mailbox is full', 'The PC is 32-bit'], 'Changes must sync to the cloud directory.'],
+    ['What usually lets Outlook set up a hosted mailbox with only an email address and password?', 'Automatic discovery of the mail settings', ['A mapped drive', 'A hosts file entry', 'A recovery partition'], 'Autodiscover finds the server settings.'],
+    ['Licenses in a cloud suite are commonly assigned by adding the user to a:', 'Group', ['Workgroup', 'Partition', 'Power plan'], 'Group-based licensing.']
+  ]);
+  // flashcards
+  RK.cards(TR, '1.1', [['NTFS', 'Windows default filesystem: permissions, EFS encryption, compression, journaling.'], ['FAT32 limit', 'Maximum single file size 4 GB.'], ['exFAT', 'Flash drives with large files; works on Windows, macOS and Linux.'], ['ext4 / XFS', 'Linux filesystems: ext4 is the common default; XFS is the Red Hat default for big volumes.'], ['APFS', 'Apple File System for macOS/iOS; optimized for SSDs.'], ['ReFS', 'Resilient File System: self-healing Windows storage filesystem.'], ['EOL', 'End of life: no more security updates — upgrade, replace or isolate.']]);
+  RK.cards(TR, '1.2', [['PXE', 'Network boot: the NIC loads an installer from a server.'], ['Clean install', 'Wipes the drive and installs a fresh OS.'], ['In-place upgrade', 'Installs a newer OS over the old one, keeping apps, files and settings.'], ['Zero-touch deployment', 'A new device configures itself from the cloud at first sign-in.'], ['MBR limits', '2 TB disks, 4 primary partitions, legacy BIOS.'], ['GPT', 'UEFI partition style: huge disks, 128 partitions, backup table.'], ['Repair installation', 'Reinstalls Windows files over themselves; keeps apps and data.']]);
+  RK.cards(TR, '1.3', [['Home lacks', 'Domain join, RDP host, BitLocker, gpedit.msc.'], ['RAM limits', 'Home 128 GB · Pro 2 TB · Pro for Workstations/Enterprise 6 TB.'], ['N edition', 'Windows without media features.'], ['Windows 11 requirements', '64-bit 2-core 1 GHz CPU, 4 GB RAM, 64 GB storage, UEFI + Secure Boot, TPM 2.0.'], ['Workgroup vs domain', 'Workgroup: local accounts per PC. Domain: central accounts and policy.']]);
+  RK.cards(TR, '1.4', [['eventvwr.msc', 'Event Viewer — Application, Security and System logs.'], ['diskmgmt.msc', 'Disk Management — initialize, partition, format, drive letters.'], ['devmgmt.msc', 'Device Manager — drivers and hardware.'], ['lusrmgr.msc', 'Local Users and Groups (not on Home).'], ['taskschd.msc', 'Task Scheduler — run programs on a trigger.'], ['perfmon.msc', 'Performance Monitor — counters over time.'], ['resmon', 'Resource Monitor — live per-process CPU, disk, network, memory.'], ['msconfig', 'System Configuration — Safe boot, selective startup.'], ['msinfo32', 'System Information — read-only hardware/software inventory.'], ['gpedit.msc', 'Local Group Policy Editor (Pro and above).'], ['certmgr.msc', 'Certificate Manager for the current user.'], ['dfrgui', 'Optimize Drives: defrag HDDs, TRIM SSDs.']]);
+  RK.cards(TR, '1.5', [['ipconfig /all', 'Full IP config: MAC, DHCP, DNS servers.'], ['ipconfig /release + /renew', 'Give up and request a DHCP lease.'], ['ipconfig /flushdns', 'Clear the local DNS cache.'], ['nslookup', 'Query DNS for a name.'], ['tracert', 'List router hops to a destination.'], ['pathping', 'tracert plus packet-loss statistics per hop.'], ['netstat -an', 'All connections and listening ports, numeric.'], ['net use', 'Map, list or remove network drives.'], ['net user', 'List/manage local accounts.'], ['chkdsk /f /r', 'Fix filesystem errors / locate bad sectors.'], ['sfc /scannow', 'Verify and repair Windows system files.'], ['diskpart', 'Command-line partitioning; "clean" wipes the partition table.'], ['robocopy /MIR', 'Mirror a folder tree (also deletes extras at the destination).'], ['gpupdate /force', 'Re-apply all Group Policy now.'], ['gpresult /r', 'Summary of which GPOs applied.'], ['whoami / hostname / winver', 'Current account / computer name / Windows version.']]);
+  RK.cards(TR, '1.6', [['Hibernate', 'Saves RAM to disk and powers off; no battery use.'], ['Sleep', 'Keeps work in RAM on low power; fast to wake.'], ['Fast startup', 'Hybrid shutdown for faster boot; disable when troubleshooting or dual-booting.'], ['Programs and Features', 'Uninstall apps; turn Windows features on or off.'], ['Indexing Options', 'Controls what Windows Search indexes; rebuild the index.'], ['Show file extensions', 'Exposes disguised files such as invoice.pdf.exe.']]);
+  RK.cards(TR, '1.7', [['UNC path', '\\\\server\\share'], ['Mapped drive', 'A drive letter pointing at a network share.'], ['Public profile', 'Untrusted network: discovery and sharing off.'], ['Private profile', 'Trusted network: discovery on.'], ['Wrong gateway symptom', 'Local subnet works; everything beyond fails.'], ['Wrong DNS symptom', 'IP addresses work; names fail.'], ['APIPA', '169.254.x.x — no DHCP server answered.'], ['Metered connection', 'Tells Windows to limit background data on capped links.']]);
+  RK.cards(TR, '1.8', [['.dmg / .pkg / .app', 'Disk image / installer package / application bundle.'], ['Time Machine', 'macOS backup with hourly snapshots.'], ['FileVault', 'macOS full-disk encryption.'], ['Keychain', 'macOS password and certificate store.'], ['Force Quit', 'Command + Option + Esc — end a frozen app.'], ['Spotlight', 'Command + Space — search everything.'], ['Disk Utility', 'Erase, partition and First Aid repair.'], ['Rapid Security Response', 'Small urgent security fixes between macOS updates.']]);
+  RK.cards(TR, '1.9', [['chmod 755', 'rwx r-x r-x — owner full; group and others read + execute.'], ['chmod 644', 'rw- r-- r-- — owner read/write; everyone else read.'], ['sudo vs su', 'sudo: one command as root with your password. su: switch user (root) with their password.'], ['apt vs dnf', 'apt: Debian/Ubuntu. dnf: Red Hat/Fedora.'], ['df vs du', 'df: free space per filesystem. du: space used by a directory.'], ['/etc/passwd vs /etc/shadow', 'Accounts vs password hashes (root-only).'], ['/etc/fstab', 'Filesystems mounted at boot.'], ['/etc/resolv.conf', 'DNS servers.'], ['/etc/hosts', 'Local name-to-IP table.'], ['grep vs find', 'grep searches inside files; find searches for files.'], ['systemd', 'Init system that starts and manages services (systemctl).'], ['fsck', 'Filesystem check and repair; run on unmounted volumes.']]);
+  RK.cards(TR, '1.10', [['32-bit vs 64-bit', '64-bit OS runs both; 32-bit OS runs only 32-bit and ~4 GB RAM.'], ['VRAM', 'Memory on a dedicated graphics card.'], ['ISO', 'Disk image file that mounts as a virtual drive.'], ['Hardware token', 'USB license or security key an app needs.'], ['Four impact areas', 'Device, network, operation, business.']]);
+  RK.cards(TR, '1.11', [['Identity synchronization', 'Copies directory accounts to the cloud so one sign-in works everywhere.'], ['License assignment', 'A subscription seat must be assigned before apps and mailbox work.'], ['Online-only file', 'Stored in the cloud only; needs Internet to open.'], ['Co-authoring', 'Several people editing the same cloud document at once.'], ['Version history', 'Restore an earlier copy of a cloud file.']]);
+})();
+
+;
+/* A+ Range — turn RangeKit objectives into stages. Domains without objectives yet keep their original stage,
+   so the console can be converted one domain at a time. Runs after every rk-c*.js content file and before app.js. */
+(function () {
+  var RK = window.RK;
+  RK.build({ track: 'core1', pfx: 'c1', domains: [
+    { d: 1, tier: 'c1-mobile', name: 'Mobile Devices', old: ['a1'], wrapLab: 'c1-d1-wrap', next: 'Domain 2 · Networking' },
+    { d: 2, tier: 'c1-net', name: 'Networking', old: ['a2'], wrapLab: 'c1-d2-wrap', next: 'Domain 3 · Hardware' },
+    { d: 3, tier: 'c1-hw', name: 'Hardware', old: ['a3'], wrapLab: 'c1-d3-wrap', next: 'Domain 4 · Virtualization & Cloud' },
+    { d: 4, tier: 'c1-virt', name: 'Virtualization and Cloud Computing', old: ['a4'], wrapLab: 'c1-d4-wrap', next: 'Domain 5 · Troubleshooting' },
+    { d: 5, tier: 'c1-ts', name: 'Hardware and Network Troubleshooting', old: ['a5'], wrapLab: 'c1-d5-wrap', next: 'the Core 1 practice exam' }
+  ] });
+  RK.build({ track: 'core2', pfx: 'c2', domains: [
+    { d: 1, tier: 'c2-os', name: 'Operating Systems', old: ['b1'], wrapLab: 'c2-d1-wrap', next: 'Domain 2 · Security' },
+    { d: 2, tier: 'c2-sec', name: 'Security', old: ['b2'], wrapLab: 'c2-d2-wrap', next: 'Domain 3 · Software Troubleshooting' },
+    { d: 3, tier: 'c2-swts', name: 'Software Troubleshooting', old: ['b3'], wrapLab: 'c2-d3-wrap', next: 'Domain 4 · Operational Procedures' },
+    { d: 4, tier: 'c2-ops', name: 'Operational Procedures', old: ['b4'], wrapLab: 'c2-d4-wrap', next: 'the Core 2 practice exam' }
+  ] });
+  RK.attachKinds();
+})();
+
+;
 COURSE.gens = window.CLOUD_GENS;
 COURSE.tools = window.CLOUD_TOOLS;
 
@@ -1857,7 +3121,8 @@ COURSE.tools = window.CLOUD_TOOLS;
   function activeTrack() { return trackOf(S.track || TRACKS[0].id).id; }
   function current(t) { var l = inTrack(t || activeTrack()); for (var i = 0; i < l.length; i++) if (!st(l[i].id).passed) return l[i]; return null; }
   function stepLabel(s) { return (TRACKS.length > 1 ? trackOf(s.track).short + ' ' : '') + 'Step ' + (s.tidx + 1); }
-  function labsDone(s) { return (s.labs || []).filter(function (l) { return st(s.id).labs[l]; }).length; }
+  function labDone(s, l) { return !!(st(s.id).labs[l] || (S.labx && S.labx[l])); }
+  function labsDone(s) { return (s.labs || []).filter(function (l) { return labDone(s, l); }).length; }
   function gateReady(s) { var x = st(s.id); return x.lesson && labsDone(s) === (s.labs || []).length; }
   function overall() { var n = STAGES.filter(function (s) { return st(s.id).passed; }).length; return Math.round(100 * n / STAGES.length); }
 
@@ -1944,7 +3209,7 @@ COURSE.tools = window.CLOUD_TOOLS;
     if (cur) {
       html += '<h2 style="margin:6px 0">Next up: ' + esc(cur.title) + '</h2><p class="muted small">' + esc(cur.goal || '') + '</p>' +
         '<div class="row"><button class="btn pri" data-go="#stage/' + cur.id + '">Continue</button>' +
-        '<span class="chip lock">Pass = over ' + PASS + '% on the gate test</span></div>';
+        '<span class="chip lock">Pass = ' + PASS + '% or better on each test</span></div>';
     } else html += '<h2 style="margin:6px 0">Path complete. You are the senior engineer now.</h2>';
     html += '</div>';
     var coreS = STAGES.filter(function (s) { return s.track === T && s.tier !== 'pro' && !s.capstone; });
@@ -1957,11 +3222,12 @@ COURSE.tools = window.CLOUD_TOOLS;
       html += '<div class="tier"><h2>' + esc(t.name) + '</h2><span class="muted small">' + esc(t.desc || '') + '</span></div><div class="path">';
       list.forEach(function (s) {
         var x = st(s.id), un = unlocked(s), cls = x.passed ? 'done' : (cur && cur.id === s.id ? 'cur' : (un ? '' : 'locked'));
-        var sub = x.passed ? 'Passed · best ' + x.best + '%' : (un ? (s.goal || '') : 'Locked — pass step ' + s.tidx + ' first');
+        var sub = x.passed ? (x.carried && !x.attempts ? 'Carried over from your earlier progress' : 'Passed · best ' + x.best + '%') : (un ? (s.goal || '') : 'Locked — pass step ' + s.tidx + ' first');
         var doms = stageDomains(s);
         var domHtml = doms.length ? '<span class="s" style="margin-top:4px;display:block">' + doms.map(function (d) { return '<span class="chip" style="padding:0 6px;font-size:10px;margin:0 4px 2px 0">' + esc(domLabel(d)) + '</span>'; }).join('') + '</span>' : '';
         html += '<button class="node ' + cls + '" ' + (un ? 'data-go="#stage/' + s.id + '"' : 'data-locked="1"') + '>' +
-          '<span class="num">' + (x.passed ? '✓' : (un ? (s.tidx + 1) : '🔒')) + '</span><span class="grow"><span class="t">' + (s.tidx + 1) + '. ' + esc(s.title) + '</span><br><span class="s">' + esc(sub) + '</span>' + domHtml + '</span></button>';
+          '<span class="num">' + (x.passed ? '✓' : (un ? (s.obj || (s.domWrap ? '🏁' : s.tidx + 1)) : '🔒')) + '</span><span class="grow"><span class="t">' + (s.obj || s.domWrap ? '' : (s.tidx + 1) + '. ') + esc(s.title) + '</span><br><span class="s">' + esc(sub) + '</span>' + domHtml + '</span></button>';
+        if (s.parts) { if (un && cur && cur.id === s.id) html += partList(s); return; }
         var parts = s.lesson || [], rd = x.lesson ? parts.length : (x.pread || 0);
         if (un && parts.length) {
           html += '<div style="margin:1px 0 12px 22px;border-left:2px solid var(--line);padding-left:12px;display:flex;flex-direction:column;gap:5px">' +
@@ -1989,13 +3255,14 @@ COURSE.tools = window.CLOUD_TOOLS;
     var x = st(s.id);
     var tabs = [['learn', 'Learn'], ['cards', 'Cards (' + s.cards.length + ')'], ['practice', 'Practice'], ['labs', 'Labs (' + labsDone(s) + '/' + (s.labs || []).length + ')'], ['gate', x.passed ? 'Gate ✓' : 'Gate 🔒']];
     if (!(s.labs || []).length) tabs.splice(3, 1);
+    if (s.parts) { tabs[tabs.length - 1][1] = (s.domWrap ? 'Domain test' : (s.obj ? 'Objective test' : 'Gate')) + (x.passed ? ' ✓' : ' 🔒'); if (!s.cards.length) { tabs.splice(1, 1); if (tab === 'cards') tab = 'learn'; } }
     m.innerHTML = '<div class="tag">' + esc((C.tiers.filter(function (t) { return t.id === s.tier; })[0] || {}).name) + ' · ' + stepLabel(s) + ' of ' + inTrack(s.track).length + '</div>' +
       '<h1 style="margin:4px 0 6px">' + esc(s.title) + '</h1><p class="muted" style="margin:0 0 8px">' + esc(s.goal || '') + '</p>' +
       (stageDomains(s).length ? '<div style="margin:0 0 8px">' + stageDomains(s).map(function (d) { return '<span class="chip" style="margin:0 6px 4px 0">Domain ' + esc(domLabel(d)) + '</span>'; }).join('') + '</div>' : '') +
       '<div class="req">' + reqChips(s) + '</div>' +
       '<div class="tabs">' + tabs.map(function (t) { return '<button class="' + (t[0] === tab ? 'on' : '') + '" data-go="#stage/' + s.id + '/' + t[0] + '">' + t[1] + '</button>'; }).join('') + '</div><div id="pane"></div>';
     var pane = $('#pane', m);
-    ({ learn: pLearn, cards: pCards, practice: pPractice, labs: pLabs, gate: pGate })[tab](pane, s);
+    ({ learn: s.parts ? pParts : pLearn, cards: pCards, practice: pPractice, labs: pLabs, gate: pGate })[tab](pane, s);
   }
   function reqChips(s) {
     var x = st(s.id), n = (s.labs || []).length;
@@ -2074,6 +3341,85 @@ COURSE.tools = window.CLOUD_TOOLS;
         wire($('#sqp', sq), q, function () {
           var r = document.createElement('div'); r.className = 'row'; r.style.marginTop = '8px';
           r.innerHTML = '<button class="btn pri" id="sqn">' + (qi + 1 >= seg.quiz.length ? 'Finish check ✓' : 'Next →') + '</button>';
+          $('#sqp', sq).appendChild(r); $('#sqn', sq).onclick = function () { qi++; draw(); };
+        }, true);
+      };
+      draw();
+    }
+  }
+
+
+  /* RANGEKIT-PARTS v1 */
+  // ---------- part-based stages (domain → objective → part) ----------
+  S.labx = S.labx || {};
+  var LABMIN = { net: 10, drill: 4, match: 3, order: 3, calc: 4, acl: 6, term: 6, sh: 8, ad: 8, git: 8, code: 8, cloud: 8 };
+  function labMin(id) { var L = C.labs[id] || {}; return L.min || LABMIN[L.kind || 'net'] || 5; }
+  function words(h) { return String(h || '').replace(/<[^>]+>/g, ' ').split(/\s+/).filter(Boolean).length; }
+  function partMin(p) { return Math.max(2, Math.round(words(p.html) / 150 + (p.qi || []).length * 0.6 + 0.5)); }
+  function allParts(s) { var a = s.parts.slice(); if (s.wrap && ((s.wrap.recap && s.wrap.recap.length) || s.wrap.lab || s.domWrap)) a.push({ wrap: true, h: s.domWrap ? 'Domain lab & test' : 'Objective wrap-up', obj: s.domWrap ? 'Combine everything in this domain, then pass the domain test.' : 'Recall every part of ' + s.obj + ', run the combined lab, then take the objective test.', html: '', qi: [] }); return a; }
+  function stageMins(s) { return allParts(s).reduce(function (t, p) { return t + (p.wrap ? 3 : partMin(p)) + (p.lab ? labMin(p.lab) : 0); }, 0) + (s.wrap && s.wrap.lab ? labMin(s.wrap.lab) : 0); }
+  function partDone(s, i) { var x = st(s.id); return x.lesson || i < (x.pread || 0); }
+  function partList(s) {
+    var ps = allParts(s);
+    return '<div style="margin:1px 0 12px 22px;border-left:2px solid var(--line);padding-left:12px;display:flex;flex-direction:column;gap:5px">' +
+      ps.map(function (p, i) {
+        var done = partDone(s, i), lab = p.wrap ? s.wrap.lab : p.lab;
+        var tg = (p.qi && p.qi.length ? '<span class="chip" style="padding:0 6px;font-size:10px">✎ check</span>' : '') + (lab && C.labs[lab] ? '<span class="chip" style="padding:0 6px;font-size:10px">' + (C.labs[lab].kind === 'term' ? '⌨ terminal' : '🧪 lab') + (labDone(s, lab) ? ' ✓' : '') + '</span>' : '');
+        return '<button data-go="#stage/' + s.id + '/learn/' + i + '" style="display:flex;align-items:center;gap:8px;background:none;border:0;padding:3px 2px;cursor:pointer;text-align:left;font:inherit;color:' + (done ? 'var(--ok)' : 'var(--muted)') + '">' +
+          '<span style="flex:0 0 18px;height:18px;border-radius:50%;border:1px solid currentColor;display:inline-flex;align-items:center;justify-content:center;font-size:11px">' + (done ? '✓' : (p.wrap ? '🏁' : i + 1)) + '</span>' +
+          '<span style="flex:1;min-width:0">' + esc(p.h) + ' <span class="dim small">· ~' + (p.wrap ? 3 : partMin(p)) + ' min</span></span>' + tg + '</button>';
+      }).join('') + '</div>';
+  }
+  var PAIR = {};
+  STAGES.forEach(function (s) { if (!s.parts) return; allParts(s).forEach(function (p, i) { var l = p.wrap ? s.wrap.lab : p.lab; if (l && !PAIR[l]) PAIR[l] = { s: s, i: i, p: p }; }); });
+  function labPanel(s, id, i, wrap) {
+    var L = C.labs[id]; if (!L) return '';
+    var d = labDone(s, id);
+    return '<div class="panel" style="border-color:' + (wrap ? 'var(--lock)' : 'var(--acc2)') + ';margin-top:12px"><div class="tag">' + (wrap ? '🏁 Combined lab' : (L.kind === 'term' ? '⌨ Paired terminal lab for this part' : '🧪 Paired lab for this part')) + ' · ~' + labMin(id) + ' min</div>' +
+      '<b style="display:block;margin:4px 0">' + esc(L.title) + '</b><div class="muted small">' + esc(L.sum || '') + '</div>' +
+      '<div class="row" style="margin-top:8px;gap:8px"><button class="btn ' + (d ? '' : 'pri') + '" data-go="#lab/' + id + '/' + s.id + '/' + i + '">' + (d ? 'Revisit lab' : 'Flip to the lab →') + '</button>' + (d ? '<span class="chip ok">✓ Done</span>' : '') + '</div></div>';
+  }
+  function pParts(p, s) {
+    var x = st(s.id), ps = allParts(s), N = ps.length;
+    var read = x.lesson ? N : (x.pread || 0);
+    var idx = view.part[s.id]; if (idx == null) idx = Math.min(read, N - 1);
+    idx = Math.max(0, Math.min(idx, N - 1)); view.part[s.id] = idx;
+    var part = ps[idx], isLast = idx === N - 1, body = '';
+    var gq = Math.min(s.gateN || 15, s.qs.length);
+    if (part.wrap) {
+      if (!s.domWrap) body = '<div class="panel lesson"><h3>🏁 ' + esc(s.obj) + ' wrap-up</h3><p class="muted small">Say each line out loud before you read it. If one feels shaky, tap its part below to flip back.</p><ul>' + (s.wrap.recap || []).map(function (r) { return '<li>' + r + '</li>'; }).join('') + '</ul>' +
+        '<div class="row" style="gap:6px;flex-wrap:wrap">' + s.parts.map(function (pp, k) { return '<button class="btn sm ghost" data-go="#stage/' + s.id + '/learn/' + k + '">' + (k + 1) + '. ' + esc(pp.h) + '</button>'; }).join('') + '</div></div>';
+      else body = '<div class="panel lesson"><h3>🏁 Domain ' + s.dom + ' — put it all together</h3><p>You have recapped every objective. Run the combined lab, then take the <b>' + gq + '-question domain test</b>. ' + PASS + '% or better opens the next domain.</p></div>';
+      if (s.wrap.lab) body += labPanel(s, s.wrap.lab, idx, true);
+      body += '<div class="panel" style="margin-top:12px"><div class="tag">' + (s.domWrap ? 'Domain test' : 'Objective test') + '</div><p class="small">' + gq + ' questions from ' + (s.domWrap ? 'Domain ' + s.dom + ' only' : 'objective ' + esc(s.obj) + ' only') + '. Pass with ' + PASS + '% or better.</p><button class="btn pri" data-go="#stage/' + s.id + '/gate">Go to the test →</button></div>';
+    } else {
+      body = '<div class="panel" style="border-color:var(--acc);margin-bottom:10px;padding:10px 12px"><div class="tag">🎯 Objective for this part</div><div style="margin-top:4px">' + esc(part.obj) + '</div></div>' +
+        '<div class="panel lesson"><h3>' + esc(part.h) + '</h3>' + part.html + '</div>';
+      if (part.qi && part.qi.length) body += '<div class="panel" style="border-color:var(--acc2);margin-top:12px"><div class="tag">✎ Quick check</div><div id="sq"></div></div>';
+      if (part.lab) body += labPanel(s, part.lab, idx, false);
+    }
+    p.innerHTML = '<div class="row" style="justify-content:space-between;align-items:center;margin-bottom:8px">' +
+      '<span class="tag">Part ' + (idx + 1) + ' of ' + N + ' · ~' + (part.wrap ? 3 : partMin(part)) + ' min' + (part.lab ? ' + ' + labMin(part.lab) + ' min lab' : '') + '</span>' +
+      '<span class="chip ' + (read >= N ? 'ok' : '') + '">' + Math.min(read, N) + '/' + N + ' parts</span></div>' +
+      '<div class="bar" style="margin-bottom:12px"><i style="width:' + Math.round(100 * Math.min(read, N) / N) + '%"></i></div>' + body +
+      '<div class="row small" style="margin-top:8px;align-items:center;gap:8px"><span class="muted">Resume code for this part:</span><span class="mono" style="color:var(--acc)">' + esc(partCode(s, idx)) + '</span><button class="btn sm ghost" data-cp="' + esc(partCode(s, idx)) + '">Copy</button></div>' +
+      '<div class="row" style="margin-top:12px;justify-content:space-between">' +
+      '<button class="btn" id="pv"' + (idx === 0 ? ' disabled' : '') + '>← Back</button>' +
+      (!isLast ? '<button class="btn pri" id="nx">' + (idx < read ? 'Next part →' : 'Got it — next part →') + '</button>'
+        : (read >= N ? '<button class="btn" data-go="#stage/' + s.id + '/gate">Go to the test →</button>' : '<button class="btn pri" id="fin">Finish the parts ✓</button>')) + '</div>';
+    p.querySelectorAll('[data-cp]').forEach(function (b) { b.onclick = function () { copy(b.dataset.cp); }; });
+    var pv = $('#pv', p); if (pv) pv.onclick = function () { view.part[s.id] = idx - 1; route(); };
+    var nx = $('#nx', p); if (nx) nx.onclick = function () { if (!x.lesson && idx + 1 > (x.pread || 0)) x.pread = idx + 1; if ((x.pread || 0) >= N) x.lesson = true; view.part[s.id] = idx + 1; persist(); route(); };
+    var fin = $('#fin', p); if (fin) fin.onclick = function () { x.pread = N; x.lesson = true; persist(); route(); };
+    if (part.qi && part.qi.length) {
+      var sq = $('#sq', p), qi = 0, key = 'p' + idx;
+      var draw = function () {
+        if ((x.seg && x.seg[key]) || qi >= part.qi.length) { sq.innerHTML = '<span class="chip ok">✓ Check complete</span> <button class="btn sm ghost" id="sqr">Redo</button>'; if (!x.seg) x.seg = {}; x.seg[key] = true; persist(); $('#sqr', sq).onclick = function () { x.seg[key] = false; qi = 0; draw(); }; return; }
+        var q = prep(s.qs[part.qi[qi]]);
+        sq.innerHTML = '<div class="small muted" style="margin-bottom:6px">Q' + (qi + 1) + ' / ' + part.qi.length + '</div><div id="sqp">' + renderQ(q) + '</div>';
+        wire($('#sqp', sq), q, function () {
+          var r = document.createElement('div'); r.className = 'row'; r.style.marginTop = '8px';
+          r.innerHTML = '<button class="btn pri" id="sqn">' + (qi + 1 >= part.qi.length ? 'Finish check ✓' : 'Next →') + '</button>';
           $('#sqp', sq).appendChild(r); $('#sqn', sq).onclick = function () { qi++; draw(); };
         }, true);
       };
@@ -2224,7 +3570,7 @@ COURSE.tools = window.CLOUD_TOOLS;
       var pool = [];
       STAGES.forEach(function (o) {
         var inPool = s.capstone.pool ? s.capstone.pool.indexOf(o.id) >= 0 : (o.idx <= s.idx && o.tier !== 'pro' && o.track === s.track);
-        if (inPool) o.qs.forEach(function (q) { if (q.d) pool.push(q); });
+        if (inPool) o.qs.forEach(function (q) { var k = q.gen ? null : String(q.q); pool._seen = pool._seen || {}; if (q.d && (!k || !pool._seen[k])) { if (k) pool._seen[k] = 1; pool.push(q); } });
       });
       var W = s.capstone.weights || C.weights, out = [];
       var counts = {}, tot = 0;
@@ -2306,7 +3652,7 @@ COURSE.tools = window.CLOUD_TOOLS;
       return '<button class="li" data-go="#lab/' + id + '"><span class="chip ' + (ok ? 'ok' : '') + '">' + (ok ? '✓' : 'LAB') + '</span><span class="grow"><b>' + esc(L.title) + '</b><div class="s">' + esc(L.sum || '') + '</div></span><span class="muted">›</span></button>';
     }).join('') + '</div>';
   }
-  function labStage(id) { return STAGES.filter(function (s) { return (s.labs || []).indexOf(id) >= 0; })[0]; }
+  function labStage(id) { return PAIR[id] ? PAIR[id].s : STAGES.filter(function (s) { return (s.labs || []).indexOf(id) >= 0; })[0]; }
   function vLabs(m) {
     var h = '<h1>Labs</h1><p class="muted">Every lab from steps you have unlocked. Labs stay open for practice after you pass.</p>';
     STAGES.forEach(function (s) {
@@ -2322,7 +3668,7 @@ COURSE.tools = window.CLOUD_TOOLS;
     m.innerHTML = h;
   }
   function vLab(m, args) {
-    var id = args[0], L = C.labs[id], s = labStage(id);
+    var id = args[0], L = C.labs[id], s = (args[1] && stageById(args[1])) || labStage(id), pi = args[2] != null && args[2] !== '' ? +args[2] : (PAIR[id] && PAIR[id].s === s ? PAIR[id].i : null);
     if (!L || !s || !unlocked(s)) { location.hash = '#labs'; return; }
     var kind = window.LAB_KINDS && window.LAB_KINDS[L.kind || 'net'];
     var api = {
@@ -2331,14 +3677,21 @@ COURSE.tools = window.CLOUD_TOOLS;
       save: function (v) { save(C.id + ':lab:' + id, v); },
       clear: function () { try { localStorage.removeItem(C.id + ':lab:' + id); } catch (e) { } },
       complete: function () {
-        if (!st(s.id).labs[id]) { st(s.id).labs[id] = true; persist(); toast('✓ Lab complete: ' + esc(L.title), 2600); }
+        S.labx[id] = true; var fb = document.getElementById('flipback'); if (fb) fb.classList.add('pri'); if (!st(s.id).labs[id]) { st(s.id).labs[id] = true; persist(); toast('✓ Lab complete: ' + esc(L.title), 2600); }
       },
-      done: function () { return !!st(s.id).labs[id]; },
-      back: '#stage/' + s.id + '/labs',
+      done: function () { return labDone(s, id); },
+      back: pi != null && s.parts ? '#stage/' + s.id + '/learn/' + pi : '#stage/' + s.id + '/labs',
       esc: esc, modal: modal, toast: toast,
       setCleanup: function (f) { cleanup = f; }
     };
     kind.render(m, L, api);
+    if (pi != null && s.parts) {
+      var pp = allParts(s)[pi] || {}, bn = document.createElement('div');
+      bn.className = 'panel'; bn.style.cssText = 'border-color:var(--acc);margin-bottom:10px;padding:10px 12px';
+      bn.innerHTML = '<div class="row" style="gap:8px;align-items:center"><span class="grow"><span class="tag">📖 Paired with ' + esc(s.obj || s.title) + ' · Part ' + (pi + 1) + '</span><b style="display:block;margin-top:2px">' + esc(pp.h || '') + '</b>' +
+        '<span class="small muted">🎯 ' + esc(pp.obj || '') + '</span></span><button class="btn sm" id="flipback" data-go="#stage/' + s.id + '/learn/' + pi + '">⇄ Flip back to Learn</button></div>';
+      m.insertBefore(bn, m.firstChild);
+    }
   }
 
   // ---------- CARDS (global) ----------
@@ -2441,6 +3794,7 @@ COURSE.tools = window.CLOUD_TOOLS;
   window.ENGINE_Q = { prep: prep, renderQ: renderQ, wire: wire };
   window.ENGINE = { state: function () { return S; }, persist: persist, stages: STAGES, st: st, route: route, esc: esc };
 
+  if (C.migrate) { try { C.migrate(S, st); persist(); } catch (e) { } }
   // ---------- boot ----------
   shell();
   if (!S.device) picker(false); else route();

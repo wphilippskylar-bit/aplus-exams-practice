@@ -42,7 +42,8 @@
   function activeTrack() { return trackOf(S.track || TRACKS[0].id).id; }
   function current(t) { var l = inTrack(t || activeTrack()); for (var i = 0; i < l.length; i++) if (!st(l[i].id).passed) return l[i]; return null; }
   function stepLabel(s) { return (TRACKS.length > 1 ? trackOf(s.track).short + ' ' : '') + 'Step ' + (s.tidx + 1); }
-  function labsDone(s) { return (s.labs || []).filter(function (l) { return st(s.id).labs[l]; }).length; }
+  function labDone(s, l) { return !!(st(s.id).labs[l] || (S.labx && S.labx[l])); }
+  function labsDone(s) { return (s.labs || []).filter(function (l) { return labDone(s, l); }).length; }
   function gateReady(s) { var x = st(s.id); return x.lesson && labsDone(s) === (s.labs || []).length; }
   function overall() { var n = STAGES.filter(function (s) { return st(s.id).passed; }).length; return Math.round(100 * n / STAGES.length); }
 
@@ -129,7 +130,7 @@
     if (cur) {
       html += '<h2 style="margin:6px 0">Next up: ' + esc(cur.title) + '</h2><p class="muted small">' + esc(cur.goal || '') + '</p>' +
         '<div class="row"><button class="btn pri" data-go="#stage/' + cur.id + '">Continue</button>' +
-        '<span class="chip lock">Pass = over ' + PASS + '% on the gate test</span></div>';
+        '<span class="chip lock">Pass = ' + PASS + '% or better on each test</span></div>';
     } else html += '<h2 style="margin:6px 0">Path complete. You are the senior engineer now.</h2>';
     html += '</div>';
     var coreS = STAGES.filter(function (s) { return s.track === T && s.tier !== 'pro' && !s.capstone; });
@@ -142,11 +143,12 @@
       html += '<div class="tier"><h2>' + esc(t.name) + '</h2><span class="muted small">' + esc(t.desc || '') + '</span></div><div class="path">';
       list.forEach(function (s) {
         var x = st(s.id), un = unlocked(s), cls = x.passed ? 'done' : (cur && cur.id === s.id ? 'cur' : (un ? '' : 'locked'));
-        var sub = x.passed ? 'Passed · best ' + x.best + '%' : (un ? (s.goal || '') : 'Locked — pass step ' + s.tidx + ' first');
+        var sub = x.passed ? (x.carried && !x.attempts ? 'Carried over from your earlier progress' : 'Passed · best ' + x.best + '%') : (un ? (s.goal || '') : 'Locked — pass step ' + s.tidx + ' first');
         var doms = stageDomains(s);
         var domHtml = doms.length ? '<span class="s" style="margin-top:4px;display:block">' + doms.map(function (d) { return '<span class="chip" style="padding:0 6px;font-size:10px;margin:0 4px 2px 0">' + esc(domLabel(d)) + '</span>'; }).join('') + '</span>' : '';
         html += '<button class="node ' + cls + '" ' + (un ? 'data-go="#stage/' + s.id + '"' : 'data-locked="1"') + '>' +
-          '<span class="num">' + (x.passed ? '✓' : (un ? (s.tidx + 1) : '🔒')) + '</span><span class="grow"><span class="t">' + (s.tidx + 1) + '. ' + esc(s.title) + '</span><br><span class="s">' + esc(sub) + '</span>' + domHtml + '</span></button>';
+          '<span class="num">' + (x.passed ? '✓' : (un ? (s.obj || (s.domWrap ? '🏁' : s.tidx + 1)) : '🔒')) + '</span><span class="grow"><span class="t">' + (s.obj || s.domWrap ? '' : (s.tidx + 1) + '. ') + esc(s.title) + '</span><br><span class="s">' + esc(sub) + '</span>' + domHtml + '</span></button>';
+        if (s.parts) { if (un && cur && cur.id === s.id) html += partList(s); return; }
         var parts = s.lesson || [], rd = x.lesson ? parts.length : (x.pread || 0);
         if (un && parts.length) {
           html += '<div style="margin:1px 0 12px 22px;border-left:2px solid var(--line);padding-left:12px;display:flex;flex-direction:column;gap:5px">' +
@@ -174,13 +176,14 @@
     var x = st(s.id);
     var tabs = [['learn', 'Learn'], ['cards', 'Cards (' + s.cards.length + ')'], ['practice', 'Practice'], ['labs', 'Labs (' + labsDone(s) + '/' + (s.labs || []).length + ')'], ['gate', x.passed ? 'Gate ✓' : 'Gate 🔒']];
     if (!(s.labs || []).length) tabs.splice(3, 1);
+    if (s.parts) { tabs[tabs.length - 1][1] = (s.domWrap ? 'Domain test' : (s.obj ? 'Objective test' : 'Gate')) + (x.passed ? ' ✓' : ' 🔒'); if (!s.cards.length) { tabs.splice(1, 1); if (tab === 'cards') tab = 'learn'; } }
     m.innerHTML = '<div class="tag">' + esc((C.tiers.filter(function (t) { return t.id === s.tier; })[0] || {}).name) + ' · ' + stepLabel(s) + ' of ' + inTrack(s.track).length + '</div>' +
       '<h1 style="margin:4px 0 6px">' + esc(s.title) + '</h1><p class="muted" style="margin:0 0 8px">' + esc(s.goal || '') + '</p>' +
       (stageDomains(s).length ? '<div style="margin:0 0 8px">' + stageDomains(s).map(function (d) { return '<span class="chip" style="margin:0 6px 4px 0">Domain ' + esc(domLabel(d)) + '</span>'; }).join('') + '</div>' : '') +
       '<div class="req">' + reqChips(s) + '</div>' +
       '<div class="tabs">' + tabs.map(function (t) { return '<button class="' + (t[0] === tab ? 'on' : '') + '" data-go="#stage/' + s.id + '/' + t[0] + '">' + t[1] + '</button>'; }).join('') + '</div><div id="pane"></div>';
     var pane = $('#pane', m);
-    ({ learn: pLearn, cards: pCards, practice: pPractice, labs: pLabs, gate: pGate })[tab](pane, s);
+    ({ learn: s.parts ? pParts : pLearn, cards: pCards, practice: pPractice, labs: pLabs, gate: pGate })[tab](pane, s);
   }
   function reqChips(s) {
     var x = st(s.id), n = (s.labs || []).length;
@@ -259,6 +262,85 @@
         wire($('#sqp', sq), q, function () {
           var r = document.createElement('div'); r.className = 'row'; r.style.marginTop = '8px';
           r.innerHTML = '<button class="btn pri" id="sqn">' + (qi + 1 >= seg.quiz.length ? 'Finish check ✓' : 'Next →') + '</button>';
+          $('#sqp', sq).appendChild(r); $('#sqn', sq).onclick = function () { qi++; draw(); };
+        }, true);
+      };
+      draw();
+    }
+  }
+
+
+  /* RANGEKIT-PARTS v1 */
+  // ---------- part-based stages (domain → objective → part) ----------
+  S.labx = S.labx || {};
+  var LABMIN = { net: 10, drill: 4, match: 3, order: 3, calc: 4, acl: 6, term: 6, sh: 8, ad: 8, git: 8, code: 8, cloud: 8 };
+  function labMin(id) { var L = C.labs[id] || {}; return L.min || LABMIN[L.kind || 'net'] || 5; }
+  function words(h) { return String(h || '').replace(/<[^>]+>/g, ' ').split(/\s+/).filter(Boolean).length; }
+  function partMin(p) { return Math.max(2, Math.round(words(p.html) / 150 + (p.qi || []).length * 0.6 + 0.5)); }
+  function allParts(s) { var a = s.parts.slice(); if (s.wrap && ((s.wrap.recap && s.wrap.recap.length) || s.wrap.lab || s.domWrap)) a.push({ wrap: true, h: s.domWrap ? 'Domain lab & test' : 'Objective wrap-up', obj: s.domWrap ? 'Combine everything in this domain, then pass the domain test.' : 'Recall every part of ' + s.obj + ', run the combined lab, then take the objective test.', html: '', qi: [] }); return a; }
+  function stageMins(s) { return allParts(s).reduce(function (t, p) { return t + (p.wrap ? 3 : partMin(p)) + (p.lab ? labMin(p.lab) : 0); }, 0) + (s.wrap && s.wrap.lab ? labMin(s.wrap.lab) : 0); }
+  function partDone(s, i) { var x = st(s.id); return x.lesson || i < (x.pread || 0); }
+  function partList(s) {
+    var ps = allParts(s);
+    return '<div style="margin:1px 0 12px 22px;border-left:2px solid var(--line);padding-left:12px;display:flex;flex-direction:column;gap:5px">' +
+      ps.map(function (p, i) {
+        var done = partDone(s, i), lab = p.wrap ? s.wrap.lab : p.lab;
+        var tg = (p.qi && p.qi.length ? '<span class="chip" style="padding:0 6px;font-size:10px">✎ check</span>' : '') + (lab && C.labs[lab] ? '<span class="chip" style="padding:0 6px;font-size:10px">' + (C.labs[lab].kind === 'term' ? '⌨ terminal' : '🧪 lab') + (labDone(s, lab) ? ' ✓' : '') + '</span>' : '');
+        return '<button data-go="#stage/' + s.id + '/learn/' + i + '" style="display:flex;align-items:center;gap:8px;background:none;border:0;padding:3px 2px;cursor:pointer;text-align:left;font:inherit;color:' + (done ? 'var(--ok)' : 'var(--muted)') + '">' +
+          '<span style="flex:0 0 18px;height:18px;border-radius:50%;border:1px solid currentColor;display:inline-flex;align-items:center;justify-content:center;font-size:11px">' + (done ? '✓' : (p.wrap ? '🏁' : i + 1)) + '</span>' +
+          '<span style="flex:1;min-width:0">' + esc(p.h) + ' <span class="dim small">· ~' + (p.wrap ? 3 : partMin(p)) + ' min</span></span>' + tg + '</button>';
+      }).join('') + '</div>';
+  }
+  var PAIR = {};
+  STAGES.forEach(function (s) { if (!s.parts) return; allParts(s).forEach(function (p, i) { var l = p.wrap ? s.wrap.lab : p.lab; if (l && !PAIR[l]) PAIR[l] = { s: s, i: i, p: p }; }); });
+  function labPanel(s, id, i, wrap) {
+    var L = C.labs[id]; if (!L) return '';
+    var d = labDone(s, id);
+    return '<div class="panel" style="border-color:' + (wrap ? 'var(--lock)' : 'var(--acc2)') + ';margin-top:12px"><div class="tag">' + (wrap ? '🏁 Combined lab' : (L.kind === 'term' ? '⌨ Paired terminal lab for this part' : '🧪 Paired lab for this part')) + ' · ~' + labMin(id) + ' min</div>' +
+      '<b style="display:block;margin:4px 0">' + esc(L.title) + '</b><div class="muted small">' + esc(L.sum || '') + '</div>' +
+      '<div class="row" style="margin-top:8px;gap:8px"><button class="btn ' + (d ? '' : 'pri') + '" data-go="#lab/' + id + '/' + s.id + '/' + i + '">' + (d ? 'Revisit lab' : 'Flip to the lab →') + '</button>' + (d ? '<span class="chip ok">✓ Done</span>' : '') + '</div></div>';
+  }
+  function pParts(p, s) {
+    var x = st(s.id), ps = allParts(s), N = ps.length;
+    var read = x.lesson ? N : (x.pread || 0);
+    var idx = view.part[s.id]; if (idx == null) idx = Math.min(read, N - 1);
+    idx = Math.max(0, Math.min(idx, N - 1)); view.part[s.id] = idx;
+    var part = ps[idx], isLast = idx === N - 1, body = '';
+    var gq = Math.min(s.gateN || 15, s.qs.length);
+    if (part.wrap) {
+      if (!s.domWrap) body = '<div class="panel lesson"><h3>🏁 ' + esc(s.obj) + ' wrap-up</h3><p class="muted small">Say each line out loud before you read it. If one feels shaky, tap its part below to flip back.</p><ul>' + (s.wrap.recap || []).map(function (r) { return '<li>' + r + '</li>'; }).join('') + '</ul>' +
+        '<div class="row" style="gap:6px;flex-wrap:wrap">' + s.parts.map(function (pp, k) { return '<button class="btn sm ghost" data-go="#stage/' + s.id + '/learn/' + k + '">' + (k + 1) + '. ' + esc(pp.h) + '</button>'; }).join('') + '</div></div>';
+      else body = '<div class="panel lesson"><h3>🏁 Domain ' + s.dom + ' — put it all together</h3><p>You have recapped every objective. Run the combined lab, then take the <b>' + gq + '-question domain test</b>. ' + PASS + '% or better opens the next domain.</p></div>';
+      if (s.wrap.lab) body += labPanel(s, s.wrap.lab, idx, true);
+      body += '<div class="panel" style="margin-top:12px"><div class="tag">' + (s.domWrap ? 'Domain test' : 'Objective test') + '</div><p class="small">' + gq + ' questions from ' + (s.domWrap ? 'Domain ' + s.dom + ' only' : 'objective ' + esc(s.obj) + ' only') + '. Pass with ' + PASS + '% or better.</p><button class="btn pri" data-go="#stage/' + s.id + '/gate">Go to the test →</button></div>';
+    } else {
+      body = '<div class="panel" style="border-color:var(--acc);margin-bottom:10px;padding:10px 12px"><div class="tag">🎯 Objective for this part</div><div style="margin-top:4px">' + esc(part.obj) + '</div></div>' +
+        '<div class="panel lesson"><h3>' + esc(part.h) + '</h3>' + part.html + '</div>';
+      if (part.qi && part.qi.length) body += '<div class="panel" style="border-color:var(--acc2);margin-top:12px"><div class="tag">✎ Quick check</div><div id="sq"></div></div>';
+      if (part.lab) body += labPanel(s, part.lab, idx, false);
+    }
+    p.innerHTML = '<div class="row" style="justify-content:space-between;align-items:center;margin-bottom:8px">' +
+      '<span class="tag">Part ' + (idx + 1) + ' of ' + N + ' · ~' + (part.wrap ? 3 : partMin(part)) + ' min' + (part.lab ? ' + ' + labMin(part.lab) + ' min lab' : '') + '</span>' +
+      '<span class="chip ' + (read >= N ? 'ok' : '') + '">' + Math.min(read, N) + '/' + N + ' parts</span></div>' +
+      '<div class="bar" style="margin-bottom:12px"><i style="width:' + Math.round(100 * Math.min(read, N) / N) + '%"></i></div>' + body +
+      '<div class="row small" style="margin-top:8px;align-items:center;gap:8px"><span class="muted">Resume code for this part:</span><span class="mono" style="color:var(--acc)">' + esc(partCode(s, idx)) + '</span><button class="btn sm ghost" data-cp="' + esc(partCode(s, idx)) + '">Copy</button></div>' +
+      '<div class="row" style="margin-top:12px;justify-content:space-between">' +
+      '<button class="btn" id="pv"' + (idx === 0 ? ' disabled' : '') + '>← Back</button>' +
+      (!isLast ? '<button class="btn pri" id="nx">' + (idx < read ? 'Next part →' : 'Got it — next part →') + '</button>'
+        : (read >= N ? '<button class="btn" data-go="#stage/' + s.id + '/gate">Go to the test →</button>' : '<button class="btn pri" id="fin">Finish the parts ✓</button>')) + '</div>';
+    p.querySelectorAll('[data-cp]').forEach(function (b) { b.onclick = function () { copy(b.dataset.cp); }; });
+    var pv = $('#pv', p); if (pv) pv.onclick = function () { view.part[s.id] = idx - 1; route(); };
+    var nx = $('#nx', p); if (nx) nx.onclick = function () { if (!x.lesson && idx + 1 > (x.pread || 0)) x.pread = idx + 1; if ((x.pread || 0) >= N) x.lesson = true; view.part[s.id] = idx + 1; persist(); route(); };
+    var fin = $('#fin', p); if (fin) fin.onclick = function () { x.pread = N; x.lesson = true; persist(); route(); };
+    if (part.qi && part.qi.length) {
+      var sq = $('#sq', p), qi = 0, key = 'p' + idx;
+      var draw = function () {
+        if ((x.seg && x.seg[key]) || qi >= part.qi.length) { sq.innerHTML = '<span class="chip ok">✓ Check complete</span> <button class="btn sm ghost" id="sqr">Redo</button>'; if (!x.seg) x.seg = {}; x.seg[key] = true; persist(); $('#sqr', sq).onclick = function () { x.seg[key] = false; qi = 0; draw(); }; return; }
+        var q = prep(s.qs[part.qi[qi]]);
+        sq.innerHTML = '<div class="small muted" style="margin-bottom:6px">Q' + (qi + 1) + ' / ' + part.qi.length + '</div><div id="sqp">' + renderQ(q) + '</div>';
+        wire($('#sqp', sq), q, function () {
+          var r = document.createElement('div'); r.className = 'row'; r.style.marginTop = '8px';
+          r.innerHTML = '<button class="btn pri" id="sqn">' + (qi + 1 >= part.qi.length ? 'Finish check ✓' : 'Next →') + '</button>';
           $('#sqp', sq).appendChild(r); $('#sqn', sq).onclick = function () { qi++; draw(); };
         }, true);
       };
@@ -409,7 +491,7 @@
       var pool = [];
       STAGES.forEach(function (o) {
         var inPool = s.capstone.pool ? s.capstone.pool.indexOf(o.id) >= 0 : (o.idx <= s.idx && o.tier !== 'pro' && o.track === s.track);
-        if (inPool) o.qs.forEach(function (q) { if (q.d) pool.push(q); });
+        if (inPool) o.qs.forEach(function (q) { var k = q.gen ? null : String(q.q); pool._seen = pool._seen || {}; if (q.d && (!k || !pool._seen[k])) { if (k) pool._seen[k] = 1; pool.push(q); } });
       });
       var W = s.capstone.weights || C.weights, out = [];
       var counts = {}, tot = 0;
@@ -491,7 +573,7 @@
       return '<button class="li" data-go="#lab/' + id + '"><span class="chip ' + (ok ? 'ok' : '') + '">' + (ok ? '✓' : 'LAB') + '</span><span class="grow"><b>' + esc(L.title) + '</b><div class="s">' + esc(L.sum || '') + '</div></span><span class="muted">›</span></button>';
     }).join('') + '</div>';
   }
-  function labStage(id) { return STAGES.filter(function (s) { return (s.labs || []).indexOf(id) >= 0; })[0]; }
+  function labStage(id) { return PAIR[id] ? PAIR[id].s : STAGES.filter(function (s) { return (s.labs || []).indexOf(id) >= 0; })[0]; }
   function vLabs(m) {
     var h = '<h1>Labs</h1><p class="muted">Every lab from steps you have unlocked. Labs stay open for practice after you pass.</p>';
     STAGES.forEach(function (s) {
@@ -507,7 +589,7 @@
     m.innerHTML = h;
   }
   function vLab(m, args) {
-    var id = args[0], L = C.labs[id], s = labStage(id);
+    var id = args[0], L = C.labs[id], s = (args[1] && stageById(args[1])) || labStage(id), pi = args[2] != null && args[2] !== '' ? +args[2] : (PAIR[id] && PAIR[id].s === s ? PAIR[id].i : null);
     if (!L || !s || !unlocked(s)) { location.hash = '#labs'; return; }
     var kind = window.LAB_KINDS && window.LAB_KINDS[L.kind || 'net'];
     var api = {
@@ -516,14 +598,21 @@
       save: function (v) { save(C.id + ':lab:' + id, v); },
       clear: function () { try { localStorage.removeItem(C.id + ':lab:' + id); } catch (e) { } },
       complete: function () {
-        if (!st(s.id).labs[id]) { st(s.id).labs[id] = true; persist(); toast('✓ Lab complete: ' + esc(L.title), 2600); }
+        S.labx[id] = true; var fb = document.getElementById('flipback'); if (fb) fb.classList.add('pri'); if (!st(s.id).labs[id]) { st(s.id).labs[id] = true; persist(); toast('✓ Lab complete: ' + esc(L.title), 2600); }
       },
-      done: function () { return !!st(s.id).labs[id]; },
-      back: '#stage/' + s.id + '/labs',
+      done: function () { return labDone(s, id); },
+      back: pi != null && s.parts ? '#stage/' + s.id + '/learn/' + pi : '#stage/' + s.id + '/labs',
       esc: esc, modal: modal, toast: toast,
       setCleanup: function (f) { cleanup = f; }
     };
     kind.render(m, L, api);
+    if (pi != null && s.parts) {
+      var pp = allParts(s)[pi] || {}, bn = document.createElement('div');
+      bn.className = 'panel'; bn.style.cssText = 'border-color:var(--acc);margin-bottom:10px;padding:10px 12px';
+      bn.innerHTML = '<div class="row" style="gap:8px;align-items:center"><span class="grow"><span class="tag">📖 Paired with ' + esc(s.obj || s.title) + ' · Part ' + (pi + 1) + '</span><b style="display:block;margin-top:2px">' + esc(pp.h || '') + '</b>' +
+        '<span class="small muted">🎯 ' + esc(pp.obj || '') + '</span></span><button class="btn sm" id="flipback" data-go="#stage/' + s.id + '/learn/' + pi + '">⇄ Flip back to Learn</button></div>';
+      m.insertBefore(bn, m.firstChild);
+    }
   }
 
   // ---------- CARDS (global) ----------
@@ -626,6 +715,7 @@
   window.ENGINE_Q = { prep: prep, renderQ: renderQ, wire: wire };
   window.ENGINE = { state: function () { return S; }, persist: persist, stages: STAGES, st: st, route: route, esc: esc };
 
+  if (C.migrate) { try { C.migrate(S, st); persist(); } catch (e) { } }
   // ---------- boot ----------
   shell();
   if (!S.device) picker(false); else route();
