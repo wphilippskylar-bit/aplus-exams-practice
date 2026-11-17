@@ -1,0 +1,8 @@
+{
+"track": "core1",
+"objectives": {
+"1.1": "battery;keyboard;keys;RAM;HDD;SSD;wireless card;biometric;near-field scanner;privacy;Wi-Fi antenna;placement;camera;webcam;microphone",
+"1.2": "USB;USB-C;microUSB;miniUSB;Lightning;NFC;Bluetooth;tethering;hotspot;stylus;headset;speaker;webcam;docking station;port replicator;trackpad;drawing pad;track point",
+"1.3": "3G;4G;5G;hotspot;Wi-Fi;SIM;eSIM;enable Bluetooth;enable pairing;find a device for pairing;PIN code;test connectivity;GPS;cellular location;MDM;corporate;BYOD;policy enforcement;corporate application;data cap;calendar;contacts;mail;cloud storage;synchroniz"
+}
+}

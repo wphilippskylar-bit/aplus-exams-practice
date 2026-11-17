@@ -49,7 +49,7 @@
      ['A how-to so Tier 1 can fix the VPN error without escalating', 'Knowledge base article', 'Self-service and deflection.']],
     'Every one of these saves time the second time a problem happens.');
 
-  RK.add({ track: TR, id: '4.1', dom: 4, short: 'Documentation & support systems', title: 'Given a scenario, implement best practices associated with documentation and support systems information management',
+  RK.add({ track: TR, id: '4.1', dom: 4, moreLabs: ['c2-asset-ps'], short: 'Documentation & support systems', title: 'Given a scenario, implement best practices associated with documentation and support systems information management',
     goal: 'Write useful tickets, manage assets through their life cycle, and pick the right document for a job.',
     kw: /\b(ticket|asset (tag|management)|inventory|cmdb|procurement|warranty|knowledge base|kb article|incident report|standard operating|\bsop\b|onboarding|off.?boarding|\bsla\b|service.level|severity|escalat)/,
     parts: [
@@ -125,7 +125,7 @@
      ['IT closed the change but users could not open the new app', 'End-user acceptance', 'Users confirm it works.']],
     'Every element of change management exists because a change once went wrong without it.');
 
-  RK.add({ track: TR, id: '4.2', dom: 4, short: 'Change management', title: 'Given a scenario, apply change management procedures',
+  RK.add({ track: TR, id: '4.2', dom: 4, moreLabs: ['c2-change-ps'], short: 'Change management', title: 'Given a scenario, apply change management procedures',
     goal: 'Request, assess, approve, implement and close a change — with a tested rollback plan.',
     kw: /\b(change (management|request|control|board|advisory)|\bcab\b|rollback|back.?out|sandbox|maintenance window|change freeze|risk (analysis|level)|scope of (the )?change|peer review|end.user acceptance|emergency change|standard change)/,
     parts: [
@@ -198,7 +198,7 @@
      ['Keep a year of monthly restore points without keeping every daily', 'GFS rotation', 'Tiered retention.']],
     'A backup plan is only as good as its last successful test restore.');
 
-  RK.add({ track: TR, id: '4.3', dom: 4, short: 'Backup & recovery', title: 'Given a scenario, implement workstation backup and recovery methods',
+  RK.add({ track: TR, id: '4.3', dom: 4, moreLabs: ['c2-backup-ps'], short: 'Backup & recovery', title: 'Given a scenario, implement workstation backup and recovery methods',
     goal: 'Choose backup types, restore safely, test backups, and keep copies with GFS and the 3-2-1 rule.',
     kw: /\b(backup|incremental|differential|synthetic|full backup|restore|recovery|3.2.1|grandfather|\bgfs\b|off.?site|on.?site|rotation)/,
     parts: [
