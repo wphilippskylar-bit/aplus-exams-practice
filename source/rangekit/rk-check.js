@@ -104,6 +104,19 @@ const shotIdx = process.argv.indexOf('--shots'); const shots = shotIdx > 0 ? pro
     await p.evaluate(() => { location.hash = '#path'; }); await p.waitForTimeout(300);
     if (shots) await p.screenshot({ path: path.join(shots, 'path.png') });
   }
+  // every terminal lab: type each canonical command (and the first accepted answer) and expect completion
+  const termIds = await p.evaluate(() => Object.keys(COURSE.labs).filter(k => COURSE.labs[k].kind === 'term'));
+  await p.evaluate(() => { COURSE.stages.forEach(s => { ENGINE.st(s.id).passed = true; }); ENGINE.persist(); });
+  for (const id of termIds) {
+    await p.evaluate(id => { try { localStorage.removeItem(Object.keys(localStorage).find(k => k.indexOf(id) >= 0) || '__none'); } catch (e) {} location.hash = '#lab/' + id; }, id);
+    await p.waitForTimeout(250);
+    if (await p.$('#rst')) { p.once('dialog', d => d.accept()); await p.click('#rst'); await p.waitForTimeout(150); }
+    if (!(await p.$('#cmd'))) { flowFail.push('term lab ' + id + ' did not render a command line'); continue; }
+    const tasks = await p.evaluate(id => COURSE.labs[id].tasks.map(t => ({ show: t.show, ans: t.ask ? String(t.ask.accept[0]) : null })), id);
+    for (const t of tasks) { await p.fill('#cmd', t.show); await p.click('#run'); await p.waitForTimeout(60); if (t.ans !== null) { if (!(await p.$('#ans'))) { flowFail.push('term lab ' + id + ': task "' + t.show + '" did not advance to its question'); break; } await p.fill('#ans', t.ans); await p.click('#ansb'); await p.waitForTimeout(60); } }
+    const ok = await p.evaluate(() => /All \d+ tasks complete/.test((document.querySelector('#task') || {}).textContent || ''));
+    if (!ok) flowFail.push('term lab ' + id + ' did not complete with its own answers');
+  }
   console.log(rep.rows.join('\n'));
   console.log('\nobjectives ' + rep.objs + ' · parts ' + rep.parts + ' · labs ' + rep.labs + ' (terminal ' + rep.term + ')');
   if (rep.score) console.log('scorecard inputs: avg ' + rep.score.avgWords + ' words/part · ' + rep.score.pctLab + '% of parts have a paired lab · ' + rep.score.pctCallout + '% of parts have an On-the-job/Exam-trap callout · ' + rep.score.sim + ' simulator/terminal labs · fewest test questions on an objective: ' + rep.score.minQ);

@@ -1,0 +1,13 @@
+{"track":"core2","objectives":{
+"1.1":"Windows;Linux;macOS;ChromeOS;iPadOS;iOS;Android;NTFS;ReFS;FAT32;ext4;XFS;APFS;exFAT;end of life;update limitation;compatibility",
+"1.2":"USB;network;flash;internet-based;external;internal;multiboot;clean install;upgrade;image deployment;remote network installation;zero-touch;recovery partition;repair installation;third-party driver;partition;GPT;MBR;format;back up;backward compatib;hardware;feature update;life cycle",
+"1.3":"Home;Pro;Pro for Workstations;Enterprise;N version;domain;workgroup;desktop style;Remote Desktop;RAM;BitLocker;gpedit.msc;in-place upgrade;clean install;TPM;UEFI",
+"1.4":"Task Manager;Services;Startup;Performance;Processes;Users;MMC;Event Viewer;Disk Management;Task Scheduler;Device Manager;Certificate Manager;Local Users and Groups;Performance Monitor;Group Policy Editor;System Information;Resource Monitor;System Configuration;Disk Cleanup;Defragment;Registry Editor",
+"1.5":"cd;dir;ipconfig;ping;netstat;nslookup;net use;tracert;pathping;chkdsk;format;diskpart;md;rmdir;robocopy;hostname;net user;winver;whoami;/?;gpupdate;gpresult;sfc",
+"1.6":"Internet Options;Devices and Printers;Programs and Features;Network and Sharing Center;System;Windows Defender Firewall;Mail;Sound;User Accounts;Device Manager;Indexing Options;Administrative Tools;File Explorer Options;hidden files;extensions;General;View;Power Options;Hibernate;power plan;Sleep;Standby;lid;Fast startup;USB selective suspend;Ease of Access;Time and Language;Update and Security;Personalization;Apps;Privacy;Devices;Network and Internet;Gaming;Accounts",
+"1.7":"domain;workgroup;printer;file server;mapped drive;firewall;exception;IP address;DNS;subnet mask;gateway;static;dynamic;VPN;wireless;wired;WWAN;proxy;public;private;network path;metered",
+"1.8":".dmg;.pkg;.app;App Store;uninstall;/Applications;/Users;/Library;/System;Apple ID;corporate;backup;antivirus;updates;Rapid Security Response;System Preferences;Displays;Networks;Printers;Scanners;Privacy;Accessibility;Time Machine;multiple desktops;Mission Control;Keychain;Spotlight;iCloud;iMessage;FaceTime;Drive;Gestures;Finder;Dock;Continuity;Disk Utility;FileVault;Terminal;Force Quit",
+"1.9":"ls;pwd;mv;cp;rm;chmod;chown;grep;find;fsck;mount;su;sudo;apt;dnf;ip;ping;curl;dig;traceroute;man;cat;top;ps;du;df;nano;/etc/passwd;/etc/shadow;/etc/hosts;/etc/fstab;/etc/resolv.conf;systemd;kernel;bootloader;root",
+"1.10":"32-bit;64-bit;dedicated;integrated;VRAM;RAM;CPU;hardware token;storage;compatib;physical media;ISO;downloadable;image deployment;device;network;operation;business",
+"1.11":"email;storage;sync;collaboration;spreadsheet;videoconferenc;presentation;word processing;instant messaging;identity synchronization;license"
+}}
