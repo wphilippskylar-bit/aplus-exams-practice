@@ -35,26 +35,46 @@ Every certification console follows **Domain → Objective → Part**, in the of
 - Questions: one clearly right answer, three plausible wrong ones, and an explanation that teaches. No "all of the above".
 - Everything stays **defensive / simulated / authorized-only**. No live targets, no attack tooling instructions beyond what the exam objectives themselves name.
 
-## 2. Report card (16 Nov 2026)
+## 2. Grading rubric (use this, critically, before and after every domain)
 
-Scale: 100 = finishing it leaves you able to do the job and teach it. Target for every console: **90+**.
-Five criteria × 20: objective coverage · depth & accuracy · hands-on · structure & pacing · assessment.
+Score what a stranger could verify, not what you intended. If you cannot point to the evidence named in a row, take the lower band.
+Five criteria, 20 points each. **90+ overall and no criterion under 17** is the bar. Never report a score without pasting the checker's
+"scorecard inputs" line and the coverage audit result next to it.
 
-| Console | Coverage | Depth | Hands-on | Structure | Assessment | **Now** | After the queue below |
+| Criterion | 0–8 (failing) | 9–13 (thin) | 14–16 (exam-ready) | 17–18 (job-ready) | 19–20 (could teach it) | Evidence required |
+|---|---|---|---|---|---|---|
+| **1. Objective coverage** | Topics, not objectives | Objectives present, many official bullets missing | Every objective; a few bullets missing or in the wrong objective | **Every official bullet** taught under its own objective, in official order | …and each bullet is also practiced or tested | Coverage audit: list of official bullets checked against lesson text, misses explained |
+| **2. Depth & accuracy** | Bullet-point summaries | Definitions only (<80 words/part) | Explains *what* and *why*; correct (100–140 words/part) | Adds *how it fails* and *what a tech does*: an On-the-job and an Exam-trap callout on every part (140–220 words/part) | Worked examples, real output and symptom→cause→fix for every troubleshooting item | Avg words/part, % parts with callouts, a spot-read of 5 random parts for errors |
+| **3. Hands-on** | No labs | Labs exist but are not tied to parts | Half the parts have a matching lab, mostly pick/match | **85%+ of parts** paired; simulator or terminal labs wherever a command or config exists; labs chain into real tickets | Every "Given a scenario" objective ends in a multi-step ticket the learner solves from output alone | % parts with paired lab, count of simulator/terminal labs, list of scenario objectives without one |
+| **4. Structure & pacing** | One long page per domain | Stages by topic, mixed domains | Domain → objective, some parts over 5 min | Domain → objective → part; every learn part ≤5 min, part + lab ≤15; objective and domain wrap-ups with distinct combined labs | …and the flip between a part and its lab loses no place on a phone | Checker passes; timing table |
+| **5. Assessment** | <5 questions per objective | Questions not tied to objectives | 12+ per objective, quick checks on most parts | Quick check on every part; 15+ per objective; explanations teach; domain tests and a weighted, timed exam | Question bank hand-reviewed per objective (none misfiled), PBQ-style items in tests | Fewest questions on any objective; note whether the bank was sorted by keyword or reviewed by hand |
+
+Honesty rules for the grader:
+- A console that is "rebuilt in the new format" but averages 100 words a part is a 13–14 on depth, not a 17.
+- Match/pick labs count for coverage of a part but do **not** raise hands-on above 16 on their own; that needs typed commands or a simulator.
+- Auto-sorted question banks cap assessment at 18 until someone reviews them objective by objective.
+- If the official objective numbering was read from a PDF, cross-check it against a second source (Professor Messer's course-notes index). PDF text extraction scrambled the numbering for both Net+ Domain 3 and A+ Core 1 Domain 3.
+
+## 2b. Report card (16 Nov 2026)
+
+| Console | Coverage | Depth | Hands-on | Structure | Assessment | **Now** | What moves it up |
 |---|---|---|---|---|---|---|---|
-| Net+ Range (N10-009) | 18 | 14 | 16 | 19 | 17 | **84** | 91 (terminal labs + depth pass) |
-| A+ Range — Core 2 Domain 1 (rebuilt) | 19 | 17 | 18 | 19 | 17 | **90** | — |
-| A+ Range — the other 8 domains | 12 | 6 | 5 | 6 | 15 | **44** | 90 |
-| Security+ Range (SY0-701) | 16 | 9 | 8 | 12 | 18 | **63** | 90 |
-| Cloud Range (15 cert tracks) | 10 | 10 | 10 | 9 | 12 | **51** | 85–90 on the tracks you finish |
-| Code Range (11 skill tracks) | 16 | 14 | 18 | 10 | 12 | **70** | 90 |
+| Net+ Range (N10-009) | 19 | 17 | 18 | 19 | 17 | **90** | Hand-review the keyword-sorted question bank per objective; multi-step tickets for 3.4 and 5.4 |
+| A+ Range — Core 2 Domain 1 (rebuilt) | 19 | 17 | 18 | 19 | 17 | **90** | Same as above |
+| A+ Range — the other 8 domains | 12 | 6 | 5 | 6 | 15 | **44** | Rebuild (queue below) |
+| Security+ Range (SY0-701) | 16 | 9 | 8 | 12 | 18 | **63** | Parts, callouts, paired labs on all 28 objectives |
+| Cloud Range (15 cert tracks) | 10 | 10 | 10 | 9 | 12 | **51** | One ladder rebuilt by official domain → objective |
+| Code Range (11 skill tracks) | 16 | 14 | 18 | 10 | 12 | **70** | Part format; Windows and Remote Access tracks |
 
-Why the low scores:
+Net+ evidence (from `rk-check.js` and `coverage-check.js`): 25 objectives, 101 parts, avg 158 words/part, 88% of parts with a paired lab,
+100% with callouts, 29 simulator/terminal labs, 15+ test questions on every objective, every official bullet found in its objective's lessons.
+Net+ went 84 → 90 by adding 7 terminal labs, two callouts on every part, and the bullet-by-bullet audit — that is the recipe for the others.
+
+Why the others are low:
 - **A+ (old domains)**: about 250 words of lesson per *domain*. It is a question bank with a thin summary on top.
 - **Security+**: already organized by objective and has 1,300 questions, but only ~170 words of teaching per objective and 13 objectives with no lab.
-- **Cloud**: far too wide for its depth — 15 certifications at 3–6 stages each. Finish one ladder properly before widening (recommended: AZ-900 → AZ-104, or CLF-C02 → SAA-C03, whichever the job hunt asks for).
+- **Cloud**: far too wide for its depth — 15 certifications at 3–6 stages each. Finish one ladder properly before widening.
 - **Code**: best hands-on of all (real code runner, shell, Git and AD simulators) but the Windows track is 2 stages with no labs, there is no remote-access track, and nothing is in the part format yet.
-- **Net+**: structure is right; parts average ~115 words, so depth is exam-level, not yet job-level, and it has no terminal labs.
 
 ## 3. Work queue (do in this order)
 
@@ -84,8 +104,10 @@ Each item is one sitting. Finish, run the checker, push, tick it off here.
 **Security+ Range** (`sec-training`) — stages are already one per objective.
 - [ ] For each of the 28 objectives: split the lesson into parts, write quick checks, add paired labs (13 objectives have none), add wrap recaps. Keep the XP/level game layer and the 80% gate that app uses.
 
-**Net+ Range** (`netplus-range`)
-- [ ] Add terminal labs (5.5 tools, 5.3 tickets, 3.4 DHCP/DNS checks) and one "On the job" + one "Exam trap" callout per part.
+**Net+ Range** (`netplus-range`) — at 90. Build: `python3 source/n10-009/patch.py`, then `node source/tools/rk-check.js index.html` and `node source/tools/coverage-check.js`.
+- [x] Terminal labs and an On-the-job + Exam-trap callout on every part; official-bullet coverage audit.
+- [ ] Hand-review the question bank objective by objective (it was sorted by keyword); move misfiled questions in `01-assign.js`.
+- [ ] Add multi-step terminal tickets for 3.4 (DHCP/DNS) and 5.4 (performance).
 
 **Cloud Range** (`cloud-range`)
 - [ ] Pick ONE ladder with Phil, rebuild it by official exam domain → objective, then the next.
@@ -105,6 +127,8 @@ cd .. && git add -A && git commit -m "…" && git push
 
 - A domain is rebuilt as soon as **any** objective for it is registered, and it then replaces the old stage for that domain — so **write a whole domain before building**, never half.
 - Old question banks are kept: each objective declares `kw: /regex/`, and old questions/cards from the domain's old stage are sorted to the best-matching objective automatically; unmatched ones go to the domain test. So write `kw` with the objective's distinctive terms.
+- **Coverage audit (required for criterion 1):** list the official bullets per objective (see `source/tools/coverage-check.js` in the Net+ repo for the pattern) and confirm each appears in that objective's lesson text. Explain every miss.
+- The checker prints a `scorecard inputs` line — paste it with your grade.
 - The checker fails on: page errors, a learn part over 5 min, part + lab over 15 min, a part without a quick check or objective line, an objective with under 12 test questions (add `RK.extra`), a wrap with under 4 recap lines, match answers missing from their options, a terminal `show` command its own `accept` rejects, or a broken flip/lab/test flow.
 - Progress: if the learner had passed the old domain stage, the new objectives start passed ("carried over"). Nothing to do.
 
@@ -162,7 +186,7 @@ Use **Core 2 objectives 1.5 and 1.9** (`src/rk-c2d1a.js`, `rk-c2d1b.js`) as the 
 
 | Repo | Site | Engine | Source | Notes |
 |---|---|---|---|---|
-| netplus-range | /netplus-range/ | single-track, patched by `source/n10-009/patch.py` | content in `source/n10-009/*.js` | storage key `netplus:v2` |
+| netplus-range | /netplus-range/ | single-track, patched by `source/n10-009/patch.py` | `source/n10-009/` (content + `index.orig.html`) | storage key `netplus:v2`; official order is 3.3 DR · 3.4 services · 3.5 access |
 | aplus-exams-practice | /aplus-exams-practice/ | track-based, RangeKit | `source/src`, `build.py` | tracks `core1`, `core2`; 90% gate |
 | sec-training | /sec-training/ | track-based + XP game layer | `source/src`, `build.py` | 80% gate; engine not yet patched — run `partsify.py source/src/app.js` first |
 | cloud-range | /cloud-range/ | track-based | index.html only | use `rk-inject.py`; has `cloud` console-sim lab kind |
@@ -172,4 +196,4 @@ All consoles: GitHub owner `wphilippskylar-bit`, GitHub Pages from the repo root
 
 ## 7. Prompt to give the next model
 
-> Read `source/rangekit/PLAYBOOK.md` in `aplus-exams-practice` and follow it exactly. Do the next unticked item in the work queue: write the whole domain as content files modeled on Core 2 objectives 1.5 and 1.9, covering every bullet of each official objective in `source/objectives/`. Build, run `rk-check.js` until it prints "all checks passed", open three parts and one terminal lab in a headless browser to confirm they read well on a phone, then commit, push, and tick the item in the playbook. Tell me the checker output and anything you were unsure about.
+> Read `source/rangekit/PLAYBOOK.md` in `aplus-exams-practice` and follow it exactly. Do the next unticked item in the work queue: write the whole domain as content files modeled on Core 2 objectives 1.5 and 1.9, covering every bullet of each official objective in `source/objectives/`. Build, run `rk-check.js` until it prints "all checks passed", open three parts and one terminal lab in a headless browser to confirm they read well on a phone, then grade the domain against the rubric in section 2 (be critical; paste the scorecard inputs and the coverage audit), fix anything under 17, commit, push, and tick the item in the playbook. Tell me the scores, the checker output and anything you were unsure about.

@@ -38,7 +38,7 @@ const shotIdx = process.argv.indexOf('--shots'); const shots = shotIdx > 0 ? pro
       if (s.domWrap && !(s.wrap && s.wrap.lab)) warn.push(s.id + ': domain wrap has no combined lab');
       let withLab = 0;
       s.parts.forEach((pt, i) => {
-        if (pt.recapOf) return; parts++;
+        if (pt.recapOf || !s.obj) return; parts++;
         const w = W(pt.html), m = Math.max(2, Math.round(w / 150 + (pt.qi || []).length * 0.6 + 0.5)), lm = pt.lab ? labMin(pt.lab) : 0;
         if (pt.lab && !C.labs[pt.lab]) fail.push(s.id + ' part ' + (i + 1) + ': paired lab missing: ' + pt.lab);
         if (pt.lab) withLab++;
@@ -51,8 +51,12 @@ const shotIdx = process.argv.indexOf('--shots'); const shots = shotIdx > 0 ? pro
       if (s.obj && withLab < Math.ceil(s.parts.length / 2)) warn.push(s.id + ': only ' + withLab + '/' + s.parts.length + ' parts have a paired lab');
       if (s.obj) rows.push(s.obj.padEnd(5) + ' parts ' + s.parts.length + ' · labs ' + (s.labs || []).length + ' · questions ' + s.qs.length + ' · cards ' + s.cards.length + ' · ' + s.title);
     });
+    const sim = Object.values(C.labs).filter(L => ['term', 'net', 'sh', 'ad', 'git', 'code', 'cloud', 'acl'].indexOf(L.kind || 'net') >= 0).length;
+    let pw = 0, pl = 0, pc = 0, pn = 0, minQ = 1e9;
+    C.stages.forEach(s => { if (!s.parts || !s.obj) return; minQ = Math.min(minQ, s.qs.length); s.parts.forEach(pt => { pn++; pw += W(pt.html); if (pt.lab && C.labs[pt.lab]) pl++; if (/class="callout/.test(pt.html)) pc++; }); });
+    const score = pn ? { avgWords: Math.round(pw / pn), pctLab: Math.round(100 * pl / pn), pctCallout: Math.round(100 * pc / pn), sim, minQ } : null;
     const term = Object.values(C.labs).filter(L => L.kind === 'term').length;
-    return { fail, warn, rows, parts, objs, term, labs: Object.keys(C.labs).length };
+    return { fail, warn, rows, parts, objs, term, score, labs: Object.keys(C.labs).length };
   });
   // flow: first part-based stage with a paired terminal lab (else any paired lab)
   const flow = await p.evaluate(() => {
@@ -102,6 +106,7 @@ const shotIdx = process.argv.indexOf('--shots'); const shots = shotIdx > 0 ? pro
   }
   console.log(rep.rows.join('\n'));
   console.log('\nobjectives ' + rep.objs + ' · parts ' + rep.parts + ' · labs ' + rep.labs + ' (terminal ' + rep.term + ')');
+  if (rep.score) console.log('scorecard inputs: avg ' + rep.score.avgWords + ' words/part · ' + rep.score.pctLab + '% of parts have a paired lab · ' + rep.score.pctCallout + '% of parts have an On-the-job/Exam-trap callout · ' + rep.score.sim + ' simulator/terminal labs · fewest test questions on an objective: ' + rep.score.minQ);
   rep.warn.forEach(w => console.log('WARN  ' + w));
   const fails = rep.fail.concat(flowFail, errs.map(e => 'page error: ' + e));
   fails.forEach(f => console.log('FAIL  ' + f));

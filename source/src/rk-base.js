@@ -128,17 +128,18 @@
     var w = cmd.split(/\s+/)[0];
     if (shell === 'cmd') return "'" + w + "' is not recognized as an internal or external command,\noperable program or batch file.";
     if (shell === 'ps') return w + " : The term '" + w + "' is not recognized as the name of a cmdlet, function, script file, or operable program.";
+    if (shell === 'ios') return "% Invalid input detected at '^' marker.";
     return 'bash: ' + w + ': command not found';
   }
   function renderTerm(m, L, api, fresh) {
     var saved = fresh ? null : api.load(), env = L.env || {}, shell = env.shell || 'bash';
     var i = saved && saved.i ? Math.min(saved.i, L.tasks.length) : 0, miss = 0, asking = false;
-    var prompt = env.prompt || (shell === 'cmd' ? 'C:\\Users\\tech>' : shell === 'ps' ? 'PS C:\\Users\\tech>' : 'tech@ubuntu:~$');
+    var prompt = env.prompt || (shell === 'cmd' ? 'C:\\Users\\tech>' : shell === 'ps' ? 'PS C:\\Users\\tech>' : shell === 'ios' ? 'SW1#' : 'tech@ubuntu:~$');
     for (var k = 0; k < i; k++) { if (L.tasks[k].prompt) prompt = L.tasks[k].prompt; if (L.tasks[k].shell) shell = L.tasks[k].shell; }
     var keys = shell === 'bash' ? ['-', '/', '|', '~', '.', '*', '>', '"', '$', '@'] : ['-', '/', '\\', '|', ':', '.', '*', '"', '$', '@'];
     m.innerHTML = '<div class="row" style="margin-bottom:8px"><button class="btn sm ghost" data-go="' + api.back + '">← Back</button><span class="grow"></span>' +
       (L.hints && L.hints.length ? '<button class="btn sm ghost" id="hint">Hint</button>' : '') + '<button class="btn sm warn" id="rst">Reset</button></div>' +
-      '<div class="tag">TERMINAL · HANDS-ON LAB · ' + esc(shell === 'cmd' ? 'Windows Command Prompt' : shell === 'ps' ? 'Windows PowerShell' : 'Linux shell') + '</div><h1 style="margin:4px 0 6px">' + esc(L.title) + '</h1>' +
+      '<div class="tag">TERMINAL · HANDS-ON LAB · ' + esc(shell === 'cmd' ? 'Windows Command Prompt' : shell === 'ps' ? 'Windows PowerShell' : shell === 'ios' ? 'Switch / router CLI' : 'Linux shell') + '</div><h1 style="margin:4px 0 6px">' + esc(L.title) + '</h1>' +
       '<div class="panel tight small" style="margin-bottom:10px">' + L.brief + '</div>' +
       '<div class="panel tight" id="task" style="border-color:var(--acc);margin-bottom:10px"></div>' +
       '<div style="background:#05080c;border:1px solid var(--line);border-radius:12px;overflow:hidden">' +
