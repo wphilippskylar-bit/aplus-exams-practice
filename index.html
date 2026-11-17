@@ -248,7 +248,7 @@ html,body{overflow-x:hidden}
 <body>
 <noscript>This study app needs JavaScript enabled.</noscript>
 <script>
-/* build 1ebea68f30 */
+/* build 3db7b6a4e8 */
 /* A+ Range — course definition (meta). Stages are appended by the a*.js (Core 1) and b*.js (Core 2) files. */
 window.Q = function (q, right, wrong, e, d) { return [q, [right].concat(wrong), 0, e, d]; };
 window.TYPE = function (q, accept, e, d, ph) { return { q: q, input: true, accept: accept, show: typeof accept[0] === 'string' ? accept[0] : undefined, e: e, d: d, ph: ph }; };
@@ -1860,10 +1860,21 @@ window.X = {
   /* cfg = { track: 'core2', pfx: 'c2', domains: [{ d: 1, tier: 'c2-os', name: 'Operating Systems', weight: 28, old: ['b1'], wrapLab: 'id', next: 'Domain 2' }] }
      Only domains that have objectives registered for cfg.track are rebuilt, so you can roll out one domain at a time. */
   RK.build = function (cfg) {
-    var C = window.COURSE, Q = window.Q;
+    var C = window.COURSE, Q = window.Q, U = cfg.unit || 'Domain';
+    if (cfg.trackDef && !(C.tracks || []).some(function (t) { return t.id === cfg.track; })) {
+      C.tracks = C.tracks || []; var ti = -1; C.tracks.forEach(function (t, i) { if (t.id === cfg.trackDef.after) ti = i; });
+      var td = { id: cfg.track, name: cfg.trackDef.name, short: cfg.trackDef.short, subtitle: cfg.trackDef.subtitle };
+      if (ti >= 0) C.tracks.splice(ti + 1, 0, td); else C.tracks.push(td);
+    }
+    cfg.domains.forEach(function (D) {
+      if (!D.tierDef || C.tiers.some(function (t) { return t.id === D.tier; })) return;
+      var li = -1; C.tiers.forEach(function (t, i) { if (t.track === cfg.track) li = i; });
+      var nt = { id: D.tier, track: cfg.track, name: D.tierDef.name, desc: D.tierDef.desc };
+      if (li >= 0) C.tiers.splice(li + 1, 0, nt); else C.tiers.push(nt);
+    });
     Object.keys(RK.labs).forEach(function (k) { C.labs[k] = RK.labs[k]; });
     var byId = {}; C.stages.forEach(function (s) { byId[s.id] = s; });
-    var newFor = {}, ci = 0, mig = [];
+    var newFor = {}, ci = 0, mig = [], appended = [];
     cfg.domains.forEach(function (D) {
       var objs = RK.objs.filter(function (o) { return o.track === cfg.track && o.dom === D.d; });
       if (!objs.length) return;
@@ -1883,7 +1894,7 @@ window.X = {
         o.parts.forEach(function (p) { if (p.lab && C.labs[p.lab] && labs.indexOf(p.lab) < 0) labs.push(p.lab); });
         if (o.wrap && o.wrap.lab && C.labs[o.wrap.lab] && labs.indexOf(o.wrap.lab) < 0) labs.push(o.wrap.lab);
         var num = o.id.replace('.', '_'), sid = cfg.pfx + 'o' + num;
-        out.push({ id: sid, track: cfg.track, tier: D.tier, dom: D.d, obj: o.id, title: o.id + ' ' + o.short, long: o.title, goal: o.goal,
+        out.push({ id: sid, track: cfg.track, tier: D.tier, dom: D.d, unit: U, obj: o.id, title: o.id + ' ' + o.short, long: o.title, goal: o.goal,
           code: (cfg.pfx + o.id.replace('.', '')).toUpperCase() + '-' + W1[ci % W1.length] + '-' + W2[(ci * 7 + 3) % W2.length],
           parts: o.parts, wrap: o.wrap || { recap: [], lab: null }, qs: qs, cards: (o.cards || []).concat(cFor[oi]), labs: labs, gateN: Math.min(15, qs.length), partQ: nPart });
         ci++; ids.push(sid);
@@ -1893,17 +1904,22 @@ window.X = {
       });
       domQs = domQs.concat(looseQ);
       var wid = cfg.pfx + 'dw' + D.d;
-      out.push({ id: wid, track: cfg.track, tier: D.tier, dom: D.d, domWrap: true, title: 'Domain ' + D.d + ' wrap-up', long: 'Domain ' + D.d + '.0 ' + D.name + ' — wrap-up',
-        goal: 'Recap every objective in Domain ' + D.d + ', run the combined lab, then pass the 30-question domain test to open ' + (D.next || 'the next domain') + '.',
+      out.push({ id: wid, track: cfg.track, tier: D.tier, dom: D.d, domWrap: true, unit: U, title: U + ' ' + D.d + ' wrap-up', long: U + ' ' + D.d + (U === 'Domain' ? '.0 ' : ' · ') + D.name + ' — wrap-up',
+        goal: 'Recap every objective in ' + U + ' ' + D.d + ', run the combined lab, then pass the ' + U.toLowerCase() + ' test to open ' + (D.next || 'the next ' + U.toLowerCase()) + '.',
         code: (cfg.pfx + 'D' + D.d + 'W').toUpperCase() + '-' + W1[(ci + 11) % W1.length] + '-' + W2[(ci * 5 + 1) % W2.length],
         parts: recapParts, wrap: { recap: [], lab: D.wrapLab && C.labs[D.wrapLab] ? D.wrapLab : null }, qs: domQs, cards: looseC,
         labs: D.wrapLab && C.labs[D.wrapLab] ? [D.wrapLab] : [], gateN: Math.min(30, domQs.length) });
       ci++; ids.push(wid);
-      (D.old || []).forEach(function (id, k) { newFor[id] = k === 0 ? out : []; });
+      if ((D.old || []).some(function (id) { return byId[id]; })) { var first = true; (D.old || []).forEach(function (id) { if (!byId[id]) return; newFor[id] = first ? out : []; first = false; }); }
+      else appended.push(out);
       mig.push({ tier: D.tier, old: D.old || [], ids: ids });
     });
     var res = [];
     C.stages.forEach(function (s) { if (newFor[s.id]) newFor[s.id].forEach(function (n) { res.push(n); }); else res.push(s); });
+    appended.forEach(function (list) { // brand-new modules: after the last stage of the same track, else at the end
+      var li = -1; res.forEach(function (s, i) { if (s.track === cfg.track) li = i; });
+      if (li >= 0) Array.prototype.splice.apply(res, [li + 1, 0].concat(list)); else res = res.concat(list);
+    });
     C.stages.length = 0; res.forEach(function (s) { C.stages.push(s); });
     RK.built = RK.built.concat(mig);
     // one-time carry-over, per domain: if an old stage for the domain was passed, the new objectives start unlocked ("carried")
@@ -3255,7 +3271,7 @@ COURSE.tools = window.CLOUD_TOOLS;
     var x = st(s.id);
     var tabs = [['learn', 'Learn'], ['cards', 'Cards (' + s.cards.length + ')'], ['practice', 'Practice'], ['labs', 'Labs (' + labsDone(s) + '/' + (s.labs || []).length + ')'], ['gate', x.passed ? 'Gate ✓' : 'Gate 🔒']];
     if (!(s.labs || []).length) tabs.splice(3, 1);
-    if (s.parts) { tabs[tabs.length - 1][1] = (s.domWrap ? 'Domain test' : (s.obj ? 'Objective test' : 'Gate')) + (x.passed ? ' ✓' : ' 🔒'); if (!s.cards.length) { tabs.splice(1, 1); if (tab === 'cards') tab = 'learn'; } }
+    if (s.parts) { tabs[tabs.length - 1][1] = (s.domWrap ? (s.unit || 'Domain') + ' test' : (s.obj ? (s.unit === 'Module' ? 'Lesson test' : 'Objective test') : 'Gate')) + (x.passed ? ' ✓' : ' 🔒'); if (!s.cards.length) { tabs.splice(1, 1); if (tab === 'cards') tab = 'learn'; } }
     m.innerHTML = '<div class="tag">' + esc((C.tiers.filter(function (t) { return t.id === s.tier; })[0] || {}).name) + ' · ' + stepLabel(s) + ' of ' + inTrack(s.track).length + '</div>' +
       '<h1 style="margin:4px 0 6px">' + esc(s.title) + '</h1><p class="muted" style="margin:0 0 8px">' + esc(s.goal || '') + '</p>' +
       (stageDomains(s).length ? '<div style="margin:0 0 8px">' + stageDomains(s).map(function (d) { return '<span class="chip" style="margin:0 6px 4px 0">Domain ' + esc(domLabel(d)) + '</span>'; }).join('') + '</div>' : '') +
@@ -3349,14 +3365,14 @@ COURSE.tools = window.CLOUD_TOOLS;
   }
 
 
-  /* RANGEKIT-PARTS v1 */
+  /* RANGEKIT-PARTS v2 */
   // ---------- part-based stages (domain → objective → part) ----------
   S.labx = S.labx || {};
   var LABMIN = { net: 10, drill: 4, match: 3, order: 3, calc: 4, acl: 6, term: 6, sh: 8, ad: 8, git: 8, code: 8, cloud: 8 };
   function labMin(id) { var L = C.labs[id] || {}; return L.min || LABMIN[L.kind || 'net'] || 5; }
   function words(h) { return String(h || '').replace(/<[^>]+>/g, ' ').split(/\s+/).filter(Boolean).length; }
   function partMin(p) { return Math.max(2, Math.round(words(p.html) / 150 + (p.qi || []).length * 0.6 + 0.5)); }
-  function allParts(s) { var a = s.parts.slice(); if (s.wrap && ((s.wrap.recap && s.wrap.recap.length) || s.wrap.lab || s.domWrap)) a.push({ wrap: true, h: s.domWrap ? 'Domain lab & test' : 'Objective wrap-up', obj: s.domWrap ? 'Combine everything in this domain, then pass the domain test.' : 'Recall every part of ' + s.obj + ', run the combined lab, then take the objective test.', html: '', qi: [] }); return a; }
+  function allParts(s) { var a = s.parts.slice(); if (s.wrap && ((s.wrap.recap && s.wrap.recap.length) || s.wrap.lab || s.domWrap)) a.push({ wrap: true, h: s.domWrap ? (s.unit || 'Domain') + ' lab & test' : 'Wrap-up', obj: s.domWrap ? 'Combine everything in this ' + (s.unit || 'Domain').toLowerCase() + ', then pass its test.' : 'Recall every part of ' + s.obj + ', run the combined lab, then take the objective test.', html: '', qi: [] }); return a; }
   function stageMins(s) { return allParts(s).reduce(function (t, p) { return t + (p.wrap ? 3 : partMin(p)) + (p.lab ? labMin(p.lab) : 0); }, 0) + (s.wrap && s.wrap.lab ? labMin(s.wrap.lab) : 0); }
   function partDone(s, i) { var x = st(s.id); return x.lesson || i < (x.pread || 0); }
   function partList(s) {
@@ -3389,9 +3405,9 @@ COURSE.tools = window.CLOUD_TOOLS;
     if (part.wrap) {
       if (!s.domWrap) body = '<div class="panel lesson"><h3>🏁 ' + esc(s.obj) + ' wrap-up</h3><p class="muted small">Say each line out loud before you read it. If one feels shaky, tap its part below to flip back.</p><ul>' + (s.wrap.recap || []).map(function (r) { return '<li>' + r + '</li>'; }).join('') + '</ul>' +
         '<div class="row" style="gap:6px;flex-wrap:wrap">' + s.parts.map(function (pp, k) { return '<button class="btn sm ghost" data-go="#stage/' + s.id + '/learn/' + k + '">' + (k + 1) + '. ' + esc(pp.h) + '</button>'; }).join('') + '</div></div>';
-      else body = '<div class="panel lesson"><h3>🏁 Domain ' + s.dom + ' — put it all together</h3><p>You have recapped every objective. Run the combined lab, then take the <b>' + gq + '-question domain test</b>. ' + PASS + '% or better opens the next domain.</p></div>';
+      else body = '<div class="panel lesson"><h3>🏁 ' + esc(s.unit || 'Domain') + ' ' + s.dom + ' — put it all together</h3><p>You have recapped every objective. Run the combined lab, then take the <b>' + gq + '-question test</b>. ' + PASS + '% or better opens the next ' + esc((s.unit || 'Domain').toLowerCase()) + '.</p></div>';
       if (s.wrap.lab) body += labPanel(s, s.wrap.lab, idx, true);
-      body += '<div class="panel" style="margin-top:12px"><div class="tag">' + (s.domWrap ? 'Domain test' : 'Objective test') + '</div><p class="small">' + gq + ' questions from ' + (s.domWrap ? 'Domain ' + s.dom + ' only' : 'objective ' + esc(s.obj) + ' only') + '. Pass with ' + PASS + '% or better.</p><button class="btn pri" data-go="#stage/' + s.id + '/gate">Go to the test →</button></div>';
+      body += '<div class="panel" style="margin-top:12px"><div class="tag">' + (s.domWrap ? esc(s.unit || 'Domain') + ' test' : 'Test') + '</div><p class="small">' + gq + ' questions from ' + (s.domWrap ? esc(s.unit || 'Domain') + ' ' + s.dom + ' only' : esc(s.obj) + ' only') + '. Pass with ' + PASS + '% or better.</p><button class="btn pri" data-go="#stage/' + s.id + '/gate">Go to the test →</button></div>';
     } else {
       body = '<div class="panel" style="border-color:var(--acc);margin-bottom:10px;padding:10px 12px"><div class="tag">🎯 Objective for this part</div><div style="margin-top:4px">' + esc(part.obj) + '</div></div>' +
         '<div class="panel lesson"><h3>' + esc(part.h) + '</h3>' + part.html + '</div>';

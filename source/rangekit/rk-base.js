@@ -49,10 +49,21 @@
   /* cfg = { track: 'core2', pfx: 'c2', domains: [{ d: 1, tier: 'c2-os', name: 'Operating Systems', weight: 28, old: ['b1'], wrapLab: 'id', next: 'Domain 2' }] }
      Only domains that have objectives registered for cfg.track are rebuilt, so you can roll out one domain at a time. */
   RK.build = function (cfg) {
-    var C = window.COURSE, Q = window.Q;
+    var C = window.COURSE, Q = window.Q, U = cfg.unit || 'Domain';
+    if (cfg.trackDef && !(C.tracks || []).some(function (t) { return t.id === cfg.track; })) {
+      C.tracks = C.tracks || []; var ti = -1; C.tracks.forEach(function (t, i) { if (t.id === cfg.trackDef.after) ti = i; });
+      var td = { id: cfg.track, name: cfg.trackDef.name, short: cfg.trackDef.short, subtitle: cfg.trackDef.subtitle };
+      if (ti >= 0) C.tracks.splice(ti + 1, 0, td); else C.tracks.push(td);
+    }
+    cfg.domains.forEach(function (D) {
+      if (!D.tierDef || C.tiers.some(function (t) { return t.id === D.tier; })) return;
+      var li = -1; C.tiers.forEach(function (t, i) { if (t.track === cfg.track) li = i; });
+      var nt = { id: D.tier, track: cfg.track, name: D.tierDef.name, desc: D.tierDef.desc };
+      if (li >= 0) C.tiers.splice(li + 1, 0, nt); else C.tiers.push(nt);
+    });
     Object.keys(RK.labs).forEach(function (k) { C.labs[k] = RK.labs[k]; });
     var byId = {}; C.stages.forEach(function (s) { byId[s.id] = s; });
-    var newFor = {}, ci = 0, mig = [];
+    var newFor = {}, ci = 0, mig = [], appended = [];
     cfg.domains.forEach(function (D) {
       var objs = RK.objs.filter(function (o) { return o.track === cfg.track && o.dom === D.d; });
       if (!objs.length) return;
@@ -72,7 +83,7 @@
         o.parts.forEach(function (p) { if (p.lab && C.labs[p.lab] && labs.indexOf(p.lab) < 0) labs.push(p.lab); });
         if (o.wrap && o.wrap.lab && C.labs[o.wrap.lab] && labs.indexOf(o.wrap.lab) < 0) labs.push(o.wrap.lab);
         var num = o.id.replace('.', '_'), sid = cfg.pfx + 'o' + num;
-        out.push({ id: sid, track: cfg.track, tier: D.tier, dom: D.d, obj: o.id, title: o.id + ' ' + o.short, long: o.title, goal: o.goal,
+        out.push({ id: sid, track: cfg.track, tier: D.tier, dom: D.d, unit: U, obj: o.id, title: o.id + ' ' + o.short, long: o.title, goal: o.goal,
           code: (cfg.pfx + o.id.replace('.', '')).toUpperCase() + '-' + W1[ci % W1.length] + '-' + W2[(ci * 7 + 3) % W2.length],
           parts: o.parts, wrap: o.wrap || { recap: [], lab: null }, qs: qs, cards: (o.cards || []).concat(cFor[oi]), labs: labs, gateN: Math.min(15, qs.length), partQ: nPart });
         ci++; ids.push(sid);
@@ -82,17 +93,22 @@
       });
       domQs = domQs.concat(looseQ);
       var wid = cfg.pfx + 'dw' + D.d;
-      out.push({ id: wid, track: cfg.track, tier: D.tier, dom: D.d, domWrap: true, title: 'Domain ' + D.d + ' wrap-up', long: 'Domain ' + D.d + '.0 ' + D.name + ' — wrap-up',
-        goal: 'Recap every objective in Domain ' + D.d + ', run the combined lab, then pass the 30-question domain test to open ' + (D.next || 'the next domain') + '.',
+      out.push({ id: wid, track: cfg.track, tier: D.tier, dom: D.d, domWrap: true, unit: U, title: U + ' ' + D.d + ' wrap-up', long: U + ' ' + D.d + (U === 'Domain' ? '.0 ' : ' · ') + D.name + ' — wrap-up',
+        goal: 'Recap every objective in ' + U + ' ' + D.d + ', run the combined lab, then pass the ' + U.toLowerCase() + ' test to open ' + (D.next || 'the next ' + U.toLowerCase()) + '.',
         code: (cfg.pfx + 'D' + D.d + 'W').toUpperCase() + '-' + W1[(ci + 11) % W1.length] + '-' + W2[(ci * 5 + 1) % W2.length],
         parts: recapParts, wrap: { recap: [], lab: D.wrapLab && C.labs[D.wrapLab] ? D.wrapLab : null }, qs: domQs, cards: looseC,
         labs: D.wrapLab && C.labs[D.wrapLab] ? [D.wrapLab] : [], gateN: Math.min(30, domQs.length) });
       ci++; ids.push(wid);
-      (D.old || []).forEach(function (id, k) { newFor[id] = k === 0 ? out : []; });
+      if ((D.old || []).some(function (id) { return byId[id]; })) { var first = true; (D.old || []).forEach(function (id) { if (!byId[id]) return; newFor[id] = first ? out : []; first = false; }); }
+      else appended.push(out);
       mig.push({ tier: D.tier, old: D.old || [], ids: ids });
     });
     var res = [];
     C.stages.forEach(function (s) { if (newFor[s.id]) newFor[s.id].forEach(function (n) { res.push(n); }); else res.push(s); });
+    appended.forEach(function (list) { // brand-new modules: after the last stage of the same track, else at the end
+      var li = -1; res.forEach(function (s, i) { if (s.track === cfg.track) li = i; });
+      if (li >= 0) Array.prototype.splice.apply(res, [li + 1, 0].concat(list)); else res = res.concat(list);
+    });
     C.stages.length = 0; res.forEach(function (s) { C.stages.push(s); });
     RK.built = RK.built.concat(mig);
     // one-time carry-over, per domain: if an old stage for the domain was passed, the new objectives start unlocked ("carried")
