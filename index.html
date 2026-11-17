@@ -248,7 +248,7 @@ html,body{overflow-x:hidden}
 <body>
 <noscript>This study app needs JavaScript enabled.</noscript>
 <script>
-/* build df5fd74a49 */
+/* build aa4ce7c0f3 */
 /* A+ Range — course definition (meta). Stages are appended by the a*.js (Core 1) and b*.js (Core 2) files. */
 window.Q = function (q, right, wrong, e, d) { return [q, [right].concat(wrong), 0, e, d]; };
 window.TYPE = function (q, accept, e, d, ph) { return { q: q, input: true, accept: accept, show: typeof accept[0] === 'string' ? accept[0] : undefined, e: e, d: d, ph: ph }; };
@@ -2308,6 +2308,505 @@ window.X = {
   RK.cards(TR, '1.1', [['powercfg /batteryreport', 'Battery design vs full-charge capacity and cycle count.'], ['SODIMM', 'Laptop memory module.'], ['M.2 SATA vs NVMe', 'Same slot shape, different interface — check support.'], ['Antenna leads', 'Run up the display lid; check after screen work.'], ['Swollen battery', 'Stop use, do not puncture, replace and recycle.']]);
   RK.cards(TR, '1.2', [['USB-C', 'Reversible; data, power (PD) and video.'], ['Lightning', 'Apple 8-pin, iPhone 5–14.'], ['Tethering vs hotspot', 'USB/Bluetooth to one device vs Wi-Fi to many.'], ['Dock vs port replicator', 'Adds capability vs duplicates ports.']]);
   RK.cards(TR, '1.3', [['eSIM', 'Embedded SIM activated by QR/carrier app.'], ['Bluetooth pairing', 'Enable → pairing mode → find → PIN → test.'], ['GPS vs cellular location', 'Satellites (accurate, outdoors) vs towers (indoors, coarse).'], ['Corporate vs BYOD', 'Fully managed vs work profile only.'], ['Data saver', 'Stops background sync to protect the data cap.']]);
+})();
+
+;
+/* A+ Core 1 (220-1201) — Domain 2.0 Networking — objectives 2.1 to 2.4 */
+(function () {
+  var RK = window.RK, P = RK.P, M = RK.M, O = RK.O, T = RK.T, TR = 'core1';
+  function pro(t) { return '<div class="callout pro"><b class="k">On the job</b>' + t + '</div>'; }
+  function trap(t) { return '<div class="callout trap"><b class="k">Exam trap</b>' + t + '</div>'; }
+
+  // ===================== 2.1 Ports & protocols =====================
+  T('c1-ports', 'Which services is this server offering?', 'Listening ports from PowerShell',
+    'Ticket: users cannot open the shared drive on FS01, but they can Remote Desktop to it. You are on FS01 in elevated PowerShell, then on a user\'s PC.',
+    { shell: 'ps', prompt: 'PS C:\\Windows\\system32>' },
+    [{ t: 'List the TCP ports FS01 is listening on, sorted by port.', accept: [/^get-nettcpconnection -state listen \| sort(-object)? (-property )?localport( -unique)?( \| select(-object)? .+)?$/i, /^netstat -an(o)?( \| (findstr|select-string) listen(ing)?)?$/i], show: 'Get-NetTCPConnection -State Listen | Sort-Object LocalPort -Unique | Select-Object LocalPort', hint: 'Get-NetTCPConnection -State Listen | Sort-Object LocalPort', out: 'LocalPort\n---------\n       22\n      135\n      139\n     3389\n     5985', ask: { q: 'SMB file sharing needs which TCP port — and is it in the list? (answer the port number)', accept: ['445'], why: 'SMB/CIFS uses TCP 445 and it is missing: the Server service (LanmanServer) is stopped. 139 is old NetBIOS session, 3389 is RDP, 22 is SSH.' }, why: 'Know the port, then look for it.' },
+     { t: 'Start the Server service that provides SMB file sharing.', accept: [/^start-service( -name)? lanmanserver$/i, /^net start (lanmanserver|server)$/i], show: 'Start-Service LanmanServer', hint: 'Start-Service LanmanServer', out: '', why: 'LanmanServer = the SMB server.' },
+     { t: 'From the user\'s PC, test TCP 445 on FS01.', accept: [/^test-netconnection( -computername)? fs01 -port 445$/i, /^tnc fs01 -port 445$/i], show: 'Test-NetConnection FS01 -Port 445', hint: 'Test-NetConnection <host> -Port <n>', out: 'ComputerName     : FS01\nRemoteAddress    : 10.1.1.20\nRemotePort       : 445\nTcpTestSucceeded : True', why: 'SMB reachable. The drive maps again.' },
+     { t: 'The user also says mail is not sending. Test the mail server MAIL01 on the port used to send mail between servers.', accept: [/^test-netconnection( -computername)? mail01 -port 25$/i, /^tnc mail01 -port 25$/i], show: 'Test-NetConnection MAIL01 -Port 25', hint: 'SMTP port.', out: 'RemotePort       : 25\nTcpTestSucceeded : True', why: 'SMTP (25) sends mail. POP3 (110) and IMAP (143) are for retrieving it.' },
+     { t: 'List the UDP endpoints on the user\'s PC.', accept: [/^get-netudpendpoint( \| sort(-object)? (-property )?localport)?( \| select(-object)? .+)?$/i, /^netstat -an(o)? -p udp$/i], show: 'Get-NetUDPEndpoint | Sort-Object LocalPort | Select-Object LocalAddress,LocalPort', hint: 'Get-NetUDPEndpoint', out: 'LocalAddress LocalPort\n------------ ---------\n0.0.0.0             68\n0.0.0.0            123\n0.0.0.0            137\n0.0.0.0            138', ask: { q: 'Which DHCP port is the client using?', accept: ['68'], why: 'DHCP: server UDP 67, client UDP 68. 123 is NTP; 137/138 NetBIOS name/datagram. UDP has no "Listen" state — it is connectionless.' }, why: 'TCP vs UDP.' }],
+    'Port-based troubleshooting: know the port → is it listening? → is it reachable? → fix the service or firewall.',
+    ['Get-NetTCPConnection -State Listen, Test-NetConnection -Port, Get-NetUDPEndpoint.']);
+  M('c1-portpick', 'Name that port', 'Ports 20–3389',
+    'Pick the port.', ['20/21', '22', '23', '25', '53', '67/68', '80', '110', '143', '137–139', '389', '443', '445', '3389'],
+    [['FTP data and control', '20/21', 'FTP.'], ['Encrypted remote command line', '22', 'SSH.'], ['Unencrypted remote command line', '23', 'Telnet.'], ['Send mail', '25', 'SMTP.'], ['Name resolution', '53', 'DNS.'], ['Automatic IP addressing', '67/68', 'DHCP.'], ['Unencrypted web', '80', 'HTTP.'], ['Download mail and remove from server', '110', 'POP3.'], ['Read mail while it stays on the server', '143', 'IMAP.'], ['Legacy Windows name/session services', '137–139', 'NetBIOS/NetBT.'], ['Directory queries', '389', 'LDAP.'], ['Encrypted web', '443', 'HTTPS.'], ['Windows file and printer sharing', '445', 'SMB/CIFS.'], ['Remote Desktop', '3389', 'RDP.']],
+    'Learn them in groups: file (20/21, 445), remote (22, 23, 3389), mail (25, 110, 143), core (53, 67/68), web (80, 443), directory/legacy (389, 137–139).');
+  M('c1-tcpudp', 'TCP or UDP?', 'Combined 2.1',
+    'Pick the transport.', ['TCP', 'UDP'],
+    [['Connection-oriented with a three-way handshake', 'TCP', 'SYN, SYN-ACK, ACK.'], ['Connectionless, no delivery guarantee', 'UDP', 'Fire and forget.'], ['Retransmits lost segments and puts them in order', 'TCP', 'Reliable.'], ['DHCP address requests', 'UDP', '67/68.'], ['Most DNS queries', 'UDP', 'TCP 53 for zone transfers/large replies.'], ['HTTPS web traffic', 'TCP', '443.'], ['Live voice and video where speed beats retransmission', 'UDP', 'Low overhead.'], ['SMB file copies', 'TCP', '445.'], ['TFTP and NTP', 'UDP', 'Simple, small.']],
+    'TCP = reliable, ordered, slower. UDP = fast, no guarantees.');
+
+  RK.add({ track: TR, id: '2.1', dom: 2, short: 'Ports & protocols', title: 'Compare and contrast TCP and UDP ports, protocols, and their purposes',
+    goal: 'Name the ports and purposes of FTP, SSH, Telnet, SMTP, DNS, DHCP, HTTP, POP3, IMAP, NetBIOS, LDAP, HTTPS, SMB and RDP, and choose TCP or UDP.',
+    kw: /\b(port \d+|tcp|udp|ftp|ssh|telnet|smtp|pop3|imap|netbios|ldap|smb|cifs|rdp|3389|443|445|\b53\b|67|68|110|143|389|handshake|connectionless|connection.oriented)/,
+    parts: [
+      P('TCP vs UDP', 'Compare the two transport protocols and decide which a service uses.',
+        `<p>Every network service runs on a <b>port</b> (a number from 0 to 65,535) over one of two transports:</p>
+<table><tr><th></th><th>TCP</th><th>UDP</th></tr>
+<tr><td>Connection</td><td><b>Connection-oriented</b>: three-way handshake (SYN, SYN-ACK, ACK)</td><td><b>Connectionless</b>: just sends</td></tr>
+<tr><td>Reliability</td><td>Acknowledges, retransmits, keeps order</td><td>No guarantee, no retransmit</td></tr>
+<tr><td>Overhead</td><td>Higher</td><td>Lower, faster</td></tr>
+<tr><td>Used by</td><td>Web, mail, file sharing, remote access</td><td>DHCP, most DNS queries, TFTP, NTP, VoIP/streaming</td></tr></table>
+<p>A <b>socket</b> = IP address + port, e.g. 10.1.1.20:445. Servers <b>listen</b> on well-known ports (under 1024); clients use random high ports.</p>` + pro('"Can\'t reach X" tickets start with the port: is the service listening on the server, and does Test-NetConnection -Port succeed from the client? That splits a server problem from a network/firewall problem in one minute.') + trap('DNS uses UDP 53 for normal queries and TCP 53 for zone transfers and large responses — "DNS is UDP only" is wrong.'),
+        [['Which transport uses a three-way handshake?', 'TCP', ['UDP', 'ICMP', 'ARP'], 'SYN, SYN-ACK, ACK.'],
+         ['Which service uses UDP 67/68?', 'DHCP', ['SMTP', 'RDP', 'LDAP'], 'Address assignment.']],
+        'c1-tcpudp'),
+      P('The ports you must know', 'Match each common service to its port and purpose.',
+        `<table><tr><th>Port</th><th>Protocol</th><th>Purpose</th></tr>
+<tr><td>20/21</td><td>FTP</td><td>File transfer (20 data, 21 control); unencrypted</td></tr>
+<tr><td>22</td><td>SSH</td><td>Encrypted remote shell (also SFTP/SCP)</td></tr>
+<tr><td>23</td><td>Telnet</td><td>Unencrypted remote shell — avoid</td></tr>
+<tr><td>25</td><td>SMTP</td><td>Send mail</td></tr>
+<tr><td>53</td><td>DNS</td><td>Name resolution</td></tr>
+<tr><td>67/68</td><td>DHCP</td><td>Automatic addressing (server/client)</td></tr>
+<tr><td>80 / 443</td><td>HTTP / HTTPS</td><td>Web, unencrypted / TLS-encrypted</td></tr>
+<tr><td>110</td><td>POP3</td><td>Download mail (usually removes it from the server)</td></tr>
+<tr><td>143</td><td>IMAP</td><td>Read mail kept on the server, synced across devices</td></tr>
+<tr><td>137–139</td><td>NetBIOS/NetBT</td><td>Legacy Windows name, datagram and session services</td></tr>
+<tr><td>389</td><td>LDAP</td><td>Directory queries (Active Directory)</td></tr>
+<tr><td>445</td><td>SMB/CIFS</td><td>Windows file and printer sharing</td></tr>
+<tr><td>3389</td><td>RDP</td><td>Remote Desktop</td></tr></table>` + pro('Never expose 3389 (RDP), 23 (Telnet) or 445 (SMB) directly to the Internet — they are among the most attacked ports. Use a VPN.') + trap('POP3 vs IMAP: a user who reads mail on a phone and a laptop and wants both to match needs IMAP (143), not POP3 (110).'),
+        [['Which port does RDP use?', '3389', ['445', '389', '22'], 'Remote Desktop.'],
+         ['A user wants mail to stay on the server and sync across devices. Which protocol?', 'IMAP (143)', ['POP3 (110)', 'SMTP (25)', 'FTP (21)'], 'IMAP keeps mail on the server.']],
+        'c1-ports')
+    ],
+    wrap: { recap: ['TCP: connection-oriented, handshake, reliable. UDP: connectionless, fast, no guarantee.', 'File: FTP 20/21, SMB/CIFS 445. Remote: SSH 22, Telnet 23 (unencrypted), RDP 3389.', 'Mail: SMTP 25 send; POP3 110 download; IMAP 143 keep on server.', 'Core: DNS 53 (UDP, TCP for big replies); DHCP 67/68 UDP.', 'Web: HTTP 80, HTTPS 443. Directory/legacy: LDAP 389, NetBIOS/NetBT 137–139.', 'Troubleshoot by port: listening on server? reachable from client?'], lab: 'c1-portpick' }
+  });
+
+  // ===================== 2.2 Wireless technologies =====================
+  T('c1-wifi', 'Slow Wi-Fi on a new laptop', 'Band, channel and standard from netsh',
+    'Ticket: "My brand-new laptop is slow on Wi-Fi at my desk." The access point supports 2.4, 5 and 6 GHz. PowerShell on the laptop.',
+    { shell: 'ps', prompt: 'PS C:\\Users\\mreyes>' },
+    [{ t: 'Show the current wireless connection details.', accept: [/^netsh wlan show interfaces?$/i], show: 'netsh wlan show interfaces', hint: 'netsh wlan show interfaces', out: '    SSID                   : OFFICE\n    Radio type             : 802.11n\n    Band                   : 2.4 GHz\n    Channel                : 6\n    Receive rate (Mbps)    : 72\n    Signal                 : 61%', ask: { q: 'Which frequency band is it using?', accept: ['2.4', '2.4 ghz', '2.4ghz'], why: '2.4 GHz with 802.11n — slow and crowded. The laptop supports 802.11ax (Wi-Fi 6E) on 5 and 6 GHz.' }, why: 'Read band, channel, standard and rate.' },
+     { t: 'List every access point the laptop can hear, with channels.', accept: [/^netsh wlan show networks mode=bssid$/i], show: 'netsh wlan show networks mode=bssid', hint: 'netsh wlan show networks mode=bssid', out: 'SSID 1 : OFFICE\n    BSSID 1  : a4:2b:..:01   Signal : 61%  Radio type : 802.11ax  Band : 2.4 GHz  Channel : 6\n    BSSID 2  : a4:2b:..:02   Signal : 54%  Radio type : 802.11ax  Band : 5 GHz    Channel : 36\n    BSSID 3  : a4:2b:..:03   Signal : 48%  Radio type : 802.11ax  Band : 6 GHz    Channel : 37\nSSID 2 : NEIGHBOR-1   Band : 2.4 GHz  Channel : 6\nSSID 3 : CAFE-GUEST   Band : 2.4 GHz  Channel : 6\nSSID 4 : PRINTER-DIRECT Band : 2.4 GHz Channel : 6', ask: { q: 'How many networks are sharing 2.4 GHz channel 6? (number)', accept: ['4'], why: 'Four networks on channel 6 = contention and interference. In 2.4 GHz only channels 1, 6 and 11 do not overlap.' }, why: 'Channel congestion explains the slowness.' },
+     { t: 'Tell the Wi-Fi adapter to prefer the 5 GHz band.', accept: [/^set-netadapteradvancedproperty -name "?wi-fi"? -displayname "?preferred band"? -displayvalue "?prefer 5(\.2)? ?ghz band"?$/i], show: 'Set-NetAdapterAdvancedProperty -Name "Wi-Fi" -DisplayName "Preferred Band" -DisplayValue "Prefer 5GHz band"', hint: 'Set-NetAdapterAdvancedProperty -Name "Wi-Fi" -DisplayName "Preferred Band" -DisplayValue "Prefer 5GHz band"', out: '', why: 'Driver setting. (Band steering on the AP does the same from the network side.)' },
+     { t: 'Check the connection again after it reconnects.', accept: [/^netsh wlan show interfaces?$/i], show: 'netsh wlan show interfaces', hint: 'Same command as step 1.', out: '    Radio type             : 802.11ax\n    Band                   : 5 GHz\n    Channel                : 36\n    Receive rate (Mbps)    : 1201\n    Signal                 : 54%', ask: { q: 'What is the new receive rate in Mbps?', accept: ['1201'], why: '72 → 1201 Mbps: 802.11ax on a clear 5 GHz channel with an 80 MHz width. Slightly weaker signal, much more throughput.' }, why: 'Verify the fix with numbers.' }],
+    'Wi-Fi slowness: read band/channel/standard → look for channel congestion → move to 5/6 GHz or a clear channel → verify the rate.',
+    ['netsh wlan show interfaces / show networks mode=bssid.']);
+  M('c1-80211', 'Which 802.11 standard?', 'a/b/g/n/ac/ax/be',
+    'Pick the standard.', ['802.11a', '802.11b', '802.11g', '802.11n (Wi-Fi 4)', '802.11ac (Wi-Fi 5)', '802.11ax (Wi-Fi 6/6E)', '802.11be (Wi-Fi 7)'],
+    [['5 GHz only, 54 Mbps, from 1999', '802.11a', 'Early 5 GHz.'], ['2.4 GHz, 11 Mbps', '802.11b', 'Oldest common.'], ['2.4 GHz, 54 Mbps', '802.11g', 'Successor to b.'], ['First with MIMO; 2.4 and 5 GHz', '802.11n (Wi-Fi 4)', 'MIMO.'], ['5 GHz only, MU-MIMO, gigabit speeds', '802.11ac (Wi-Fi 5)', 'Wave 2 MU-MIMO.'], ['OFDMA, up to 6 GHz with the E version', '802.11ax (Wi-Fi 6/6E)', 'Dense environments.'], ['320 MHz channels and multi-link operation', '802.11be (Wi-Fi 7)', 'Newest.']],
+    'b/g = 2.4; a/ac = 5; n = both; ax = 2.4/5 (+6 with 6E); be = 2.4/5/6.');
+  M('c1-wl-wrap', 'Wireless technologies desk', 'Combined 2.2',
+    'Pick the best answer.', ['2.4 GHz', '5 GHz', '6 GHz', 'Channels 1, 6, 11', 'Wider channel (80/160 MHz)', 'Regulations (country setting)', 'Bluetooth', 'NFC', 'RFID'],
+    [['Best range through walls, most interference', '2.4 GHz', 'Longer wavelength, crowded.'], ['Good speed, many non-overlapping channels, shorter range', '5 GHz', 'Common default.'], ['Newest, clean spectrum, needs Wi-Fi 6E/7 devices', '6 GHz', 'Shortest range.'], ['The only non-overlapping 2.4 GHz channels in North America', 'Channels 1, 6, 11', 'Avoid overlap.'], ['More throughput in a quiet area, fewer channels available', 'Wider channel (80/160 MHz)', 'Channel width trade-off.'], ['Which channels and power are legal depends on this', 'Regulations (country setting)', 'Set the AP country code.'], ['Wireless keyboard and earbuds', 'Bluetooth', 'PAN.'], ['Tap phone to pay', 'NFC', 'cm range.'], ['Inventory tags read by a handheld scanner in a warehouse', 'RFID', 'Radio-frequency identification.']],
+    'Pick the band for the job: range (2.4), balance (5), clean speed (6).');
+
+  RK.add({ track: TR, id: '2.2', dom: 2, short: 'Wireless technologies', title: 'Explain wireless networking technologies',
+    goal: 'Compare 2.4/5/6 GHz bands, channels and widths, 802.11 standards, Bluetooth, NFC and RFID.',
+    kw: /\b(2\.4 ?ghz|5 ?ghz|6 ?ghz|channel|802\.11|wi.?fi [4-7]|mimo|ofdma|bluetooth|nfc|rfid|wireless standard|frequenc)/,
+    parts: [
+      P('Frequencies and channels', 'Compare the 2.4, 5 and 6 GHz bands and choose channels and channel widths.',
+        `<table><tr><th>Band</th><th>Range</th><th>Speed / interference</th></tr>
+<tr><td><b>2.4 GHz</b></td><td>Longest, best through walls</td><td>Slowest; crowded (microwaves, Bluetooth, neighbors). Only <b>3 non-overlapping channels</b>: 1, 6, 11.</td></tr>
+<tr><td><b>5 GHz</b></td><td>Shorter</td><td>Faster; many non-overlapping channels; some (DFS) shared with weather radar.</td></tr>
+<tr><td><b>6 GHz</b></td><td>Shortest</td><td>Fastest and cleanest; Wi-Fi 6E and Wi-Fi 7 devices only.</td></tr></table>
+<p><b>Channels</b>:</p>
+<ul><li><b>Regulations</b> — each country decides which channels and transmit power are legal; set the AP\'s country code correctly.</li>
+<li><b>Channel selection</b> — use a Wi-Fi analyzer, pick the least-used channel; neighboring APs on non-overlapping channels.</li>
+<li><b>Channel width</b> — 20, 40, 80, 160 (and 320 on Wi-Fi 7) MHz. Wider = faster, but fewer channels and more chance of overlap. Use 20 MHz on 2.4 GHz.</li></ul>` + pro('In a crowded office, 20 or 40 MHz channels on 5 GHz often beat 160 MHz: more APs get a clean channel each.') + trap('Higher frequency = more speed but less range. 2.4 GHz reaches farther than 5 or 6 GHz.'),
+        [['Which 2.4 GHz channels do not overlap?', '1, 6 and 11', ['1, 2 and 3', '36, 40 and 44', '6, 7 and 8'], 'Three clean channels.'],
+         ['Which band has the longest range?', '2.4 GHz', ['5 GHz', '6 GHz', '60 GHz'], 'Lower frequency travels farther.']],
+        'c1-wifi'),
+      P('802.11 standards, Bluetooth, NFC and RFID', 'Identify 802.11 standards and compare Bluetooth, NFC and RFID.',
+        `<table><tr><th>Standard</th><th>Band(s)</th><th>Note</th></tr>
+<tr><td>802.11a</td><td>5 GHz</td><td>54 Mbps</td></tr>
+<tr><td>802.11b / g</td><td>2.4 GHz</td><td>11 / 54 Mbps</td></tr>
+<tr><td>802.11n (Wi-Fi 4)</td><td>2.4 + 5</td><td>MIMO (multiple antennas)</td></tr>
+<tr><td>802.11ac (Wi-Fi 5)</td><td>5</td><td>MU-MIMO, gigabit</td></tr>
+<tr><td>802.11ax (Wi-Fi 6 / 6E)</td><td>2.4 + 5 (+ 6 for 6E)</td><td>OFDMA, efficient in dense areas</td></tr>
+<tr><td>802.11be (Wi-Fi 7)</td><td>2.4 + 5 + 6</td><td>320 MHz channels, multi-link</td></tr></table>
+<ul><li><b>Bluetooth</b> — 2.4 GHz personal area network (PAN), ~10 m, for headsets, keyboards, mice.</li>
+<li><b>NFC</b> — near-field communication, ~4 cm, payments and badge taps.</li>
+<li><b>RFID</b> — radio-frequency identification: tags (often unpowered) read by a scanner; inventory, badges, toll tags. NFC is a short-range type of RFID.</li></ul>` + pro('Mixed old and new clients slow a network down. Disabling 802.11b support on the AP is a common quick win.') + trap('802.11ac is 5 GHz only. 802.11n is the first standard on both 2.4 and 5 GHz.'),
+        [['Which standard added MU-MIMO on 5 GHz only?', '802.11ac', ['802.11b', '802.11g', '802.11a'], 'Wi-Fi 5.'],
+         ['Warehouse pallets carry tags read by a handheld scanner. Which technology?', 'RFID', ['Bluetooth', 'NFC payment', 'Wi-Fi 6E'], 'Radio-frequency identification.']],
+        'c1-80211')
+    ],
+    wrap: { recap: ['2.4 GHz: range, interference, channels 1/6/11. 5 GHz: speed, many channels. 6 GHz: cleanest, 6E/7 only.', 'Regulations set legal channels and power; set the country code.', 'Channel selection with an analyzer; wider channels = faster but fewer.', '802.11a/b/g/n/ac/ax/be — know bands and key features (MIMO, MU-MIMO, OFDMA).', 'Bluetooth PAN ~10 m; NFC ~4 cm; RFID tags for inventory/badges.', 'Verify fixes with netsh wlan show interfaces (band, channel, rate).'], lab: 'c1-wl-wrap' }
+  });
+
+  // ===================== 2.3 Networked host services =====================
+  M('c1-roles', 'Which server role?', 'DNS, DHCP, file, print, mail, syslog, web, AAA, database, NTP',
+    'Pick the server role.', ['DNS server', 'DHCP server', 'Fileshare', 'Print server', 'Mail server', 'Syslog', 'Web server', 'AAA', 'Database server', 'NTP'],
+    [['Turns intranet.corp.local into 10.1.1.40', 'DNS server', 'Name resolution.'], ['Hands out IP address, mask, gateway and DNS', 'DHCP server', 'Addressing.'], ['Central folders users map as drives', 'Fileshare', 'SMB.'], ['Manages queues and drivers for 30 office printers', 'Print server', 'Central printing.'], ['Stores and delivers company email', 'Mail server', 'SMTP/IMAP.'], ['Collects log messages from switches, firewalls and servers', 'Syslog', 'Central logging.'], ['Hosts the company intranet site', 'Web server', 'HTTP/HTTPS.'], ['Checks VPN users\' credentials, permissions and logs their sessions', 'AAA', 'Authentication, authorization, accounting (RADIUS/TACACS+).'], ['Stores the CRM records behind an application', 'Database server', 'SQL.'], ['Keeps every clock in sync', 'NTP', 'Time.']],
+    'Server roles are services; one physical server can run several.');
+  M('c1-appliance', 'Appliance, legacy or IoT?', 'Spam gateway, UTM, load balancer, proxy, SCADA, IoT',
+    'Pick the device type.', ['Spam gateway', 'Unified threat management (UTM)', 'Load balancer', 'Proxy server', 'SCADA', 'IoT device'],
+    [['Filters junk and phishing mail before it reaches the mail server', 'Spam gateway', 'Mail filtering.'], ['One box: firewall, IPS, antivirus, content filter and VPN', 'Unified threat management (UTM)', 'All-in-one.'], ['Spreads web requests across four identical web servers', 'Load balancer', 'Availability and scale.'], ['Makes web requests on behalf of users and can cache and filter them', 'Proxy server', 'Intermediary.'], ['Controls pumps and valves at a water treatment plant', 'SCADA', 'Industrial control, often legacy/embedded.'], ['Smart thermostat and doorbell camera on the office network', 'IoT device', 'Put them on their own VLAN.']],
+    'Legacy/embedded systems and IoT are hard to patch — isolate them.');
+  M('c1-svc-wrap', 'Networked services desk', 'Combined 2.3',
+    'Pick the best answer.', ['DNS server', 'DHCP server', 'Syslog', 'NTP', 'AAA', 'Load balancer', 'Proxy server', 'UTM', 'SCADA'],
+    [['Every PC got 169.254 addresses this morning', 'DHCP server', 'No leases handed out.'], ['Users can reach sites by IP but not by name', 'DNS server', 'Name resolution failing.'], ['Investigator needs firewall logs from last week in one place', 'Syslog', 'Central log collection.'], ['Kerberos sign-ins fail because clocks differ by 10 minutes', 'NTP', 'Time sync.'], ['Wi-Fi users authenticate with their domain accounts through RADIUS', 'AAA', '802.1X/RADIUS.'], ['The web shop must keep running if one web server fails', 'Load balancer', 'Distributes and health-checks.'], ['School must block and log certain websites for all students', 'Proxy server', 'Content filtering.'], ['Small office wants firewall, antivirus and VPN in one device', 'UTM', 'All-in-one.'], ['Factory control system still runs an unsupported OS', 'SCADA', 'Legacy/embedded — segment it.']],
+    'Symptom → which service is missing.');
+
+  RK.add({ track: TR, id: '2.3', dom: 2, short: 'Networked host services', title: 'Summarize services provided by networked hosts',
+    goal: 'Describe server roles, Internet appliances, legacy/embedded (SCADA) systems and IoT devices.',
+    kw: /\b(server role|dns server|dhcp server|file ?share|file server|print server|mail server|syslog|web server|aaa|radius|tacacs|database server|ntp|spam gateway|utm|unified threat|load balanc|proxy|scada|legacy|embedded|iot|internet of things)/,
+    parts: [
+      P('Server roles', 'Describe what DNS, DHCP, fileshare, print, mail, syslog, web, AAA, database and NTP servers provide.',
+        `<ul><li><b>DNS</b> — resolves names to IP addresses (port 53).</li>
+<li><b>DHCP</b> — leases IP address, subnet mask, gateway and DNS servers to clients (67/68).</li>
+<li><b>Fileshare</b> — central shared folders (SMB 445), with NTFS/share permissions.</li>
+<li><b>Print servers</b> — host printer queues and drivers so clients install once and admins manage centrally.</li>
+<li><b>Mail servers</b> — send (SMTP) and store/deliver (IMAP/POP3) email; e.g. Exchange, now often cloud.</li>
+<li><b>Syslog</b> — collects log messages from many devices in one place (UDP 514), the basis of a SIEM.</li>
+<li><b>Web servers</b> — host websites and web apps (HTTP/HTTPS).</li>
+<li><b>AAA</b> — authentication, authorization and accounting, e.g. RADIUS or TACACS+ for VPN, Wi-Fi and device logins.</li>
+<li><b>Database servers</b> — store structured data for applications (SQL).</li>
+<li><b>NTP</b> — Network Time Protocol keeps clocks synchronized (UDP 123).</li></ul>` + pro('When "everything" breaks at once, think shared services first: DNS and DHCP outages look like a dozen different problems.') + trap('AAA is three things: authentication (who are you), authorization (what may you do), accounting (what did you do).'),
+        [['Which server collects log messages from network devices?', 'Syslog', ['NTP', 'DHCP', 'Print'], 'Central logging.'],
+         ['What does the second A in AAA stand for?', 'Authorization', ['Authentication', 'Accounting', 'Availability'], 'Authentication, authorization, accounting.']],
+        'c1-roles'),
+      P('Appliances, SCADA and IoT', 'Describe spam gateways, UTM, load balancers, proxy servers, legacy/embedded SCADA systems and IoT devices.',
+        `<p><b>Internet appliances</b> sit between users and the Internet:</p>
+<ul><li><b>Spam gateways</b> — filter spam, phishing and malware in email before delivery.</li>
+<li><b>Unified threat management (UTM)</b> — one device combining firewall, intrusion prevention, antivirus, content filtering and VPN. Popular in small offices.</li>
+<li><b>Load balancers</b> — spread traffic across several servers and stop sending to one that fails a health check.</li>
+<li><b>Proxy servers</b> — make requests on behalf of clients; can cache, filter and log web use.</li></ul>
+<p><b>Legacy/embedded systems</b> — <b>SCADA</b> (supervisory control and data acquisition) runs industrial equipment: power, water, manufacturing. Often old, hard to patch, and must stay running.</p>
+<p><b>Internet of Things (IoT) devices</b> — thermostats, cameras, smart TVs, sensors, door locks. Convenient but often weak security.</p>` + pro('Put IoT devices and SCADA systems on their own VLAN, firewalled from user PCs and servers. Change every default password on day one.') + trap('A proxy acts for the client; a load balancer acts for the servers. Both sit in the middle.'),
+        [['Which appliance spreads web traffic across several servers?', 'Load balancer', ['Proxy server', 'Spam gateway', 'Syslog'], 'Scale and availability.'],
+         ['What is the main security concern with SCADA and IoT devices?', 'They are often hard to patch and weakly secured, so they should be isolated', ['They use too much bandwidth', 'They require RAID', 'They need eSIMs'], 'Segment them.']],
+        'c1-appliance')
+    ],
+    wrap: { recap: ['DNS names → IPs; DHCP leases addresses; NTP time; syslog collects logs.', 'Fileshare (SMB), print servers, mail servers, web servers, database servers.', 'AAA = authentication, authorization, accounting (RADIUS/TACACS+).', 'Spam gateway filters mail; UTM = all-in-one security box.', 'Load balancer spreads traffic for servers; proxy requests on behalf of clients.', 'SCADA (legacy/embedded industrial) and IoT: hard to patch → isolate on their own network.'], lab: 'c1-svc-wrap' }
+  });
+
+  // ===================== 2.4 Network configuration concepts =====================
+  T('c1-dns', 'Why is our email going to spam?', 'DNS records with nslookup',
+    'Ticket: customers say mail from brightpath.example lands in spam since the company started using a new marketing mail service. Command Prompt.',
+    { shell: 'cmd', prompt: 'C:\\Users\\tech>' },
+    [{ t: 'Find the domain\'s mail servers.', accept: [/^nslookup -(type|q|querytype)=mx brightpath\.example$/i], show: 'nslookup -type=mx brightpath.example', hint: 'nslookup -type=<record type> <domain>', out: 'brightpath.example  MX preference = 10, mail exchanger = brightpath-example.mail.protection.outlook.com', why: 'MX = where mail for the domain is delivered.' },
+     { t: 'Show the domain\'s TXT records (that is where SPF lives).', accept: [/^nslookup -(type|q|querytype)=txt brightpath\.example$/i], show: 'nslookup -type=txt brightpath.example', hint: 'TXT record type.', out: 'brightpath.example  text = "v=spf1 include:spf.protection.outlook.com -all"\nbrightpath.example  text = "MS=ms81726354"', ask: { q: 'SPF lists who may send for the domain. Is the new marketing service listed? (yes/no)', accept: ['no'], why: 'Only Microsoft 365 is allowed, with -all (fail everything else). The marketing service must be added: include:<its SPF host>.' }, why: 'SPF — a spam-management TXT record.' },
+     { t: 'Check the domain\'s DMARC policy (TXT record at _dmarc).', accept: [/^nslookup -(type|q|querytype)=txt _dmarc\.brightpath\.example$/i], show: 'nslookup -type=txt _dmarc.brightpath.example', hint: 'The DMARC record is at _dmarc.<domain>.', out: '_dmarc.brightpath.example  text = "v=DMARC1; p=quarantine; rua=mailto:dmarc@brightpath.example"', ask: { q: 'What does the policy (p=) tell receivers to do with failing mail?', accept: ['quarantine'], why: 'Quarantine = send failing mail to spam. That is why the marketing mail, failing SPF, lands in spam.' }, why: 'DMARC tells receivers what to do when SPF/DKIM fail.' },
+     { t: 'Check the DKIM public key the marketing service gave you (selector mk1).', accept: [/^nslookup -(type|q|querytype)=txt mk1\._domainkey\.brightpath\.example$/i], show: 'nslookup -type=txt mk1._domainkey.brightpath.example', hint: 'DKIM keys live at <selector>._domainkey.<domain>.', out: '*** can\'t find mk1._domainkey.brightpath.example: Non-existent domain', why: 'The DKIM key was never published. Fix: add the DKIM TXT record and the SPF include, then mail passes DMARC.' },
+     { t: 'Separately, confirm www is an alias. Look up the website name.', accept: [/^nslookup www\.brightpath\.example$/i], show: 'nslookup www.brightpath.example', hint: 'nslookup <name>', out: 'Name:    bp-site.azurewebsites.example\nAddresses:  2001:db8:40::12\n          203.0.113.12\nAliases:  www.brightpath.example', ask: { q: 'Which record type makes www an alias of another name?', accept: ['cname'], why: 'CNAME = alias. The real host has an A record (IPv4) and an AAAA record (IPv6).' }, why: 'A, AAAA, CNAME in one lookup.' }],
+    'Mail deliverability = MX (where to deliver) + SPF (who may send) + DKIM (signed) + DMARC (what to do on failure).',
+    ['nslookup -type=mx / -type=txt; _dmarc and <selector>._domainkey names.']);
+  M('c1-netcfg', 'DHCP, VLAN or VPN?', 'Configuration concepts',
+    'Pick the concept.', ['DHCP lease', 'DHCP reservation', 'DHCP scope', 'DHCP exclusion', 'VLAN', 'VPN'],
+    [['The client keeps its address for 8 days, then must renew', 'DHCP lease', 'Lease time.'], ['The printer always gets 10.1.1.50 based on its MAC address', 'DHCP reservation', 'Fixed via DHCP.'], ['The server hands out 10.1.1.100–10.1.1.200 with mask, gateway and DNS', 'DHCP scope', 'Pool + options.'], ['Keep 10.1.1.100–10.1.1.110 out of the pool for static devices', 'DHCP exclusion', 'Not handed out.'], ['Phones and PCs on the same switch but in separate logical networks', 'VLAN', 'Layer 2 segmentation.'], ['A home worker reaches office servers through an encrypted tunnel', 'VPN', 'Remote access.']],
+    'Reservation = always the same address via DHCP. Exclusion = never handed out.');
+  M('c1-cfg-wrap', 'Configuration concepts desk', 'Combined 2.4',
+    'Pick the record or setting.', ['A', 'AAAA', 'CNAME', 'MX', 'TXT (SPF)', 'TXT (DKIM)', 'TXT (DMARC)', 'DHCP reservation', 'VLAN', 'VPN'],
+    [['Maps a name to an IPv4 address', 'A', 'Address.'], ['Maps a name to an IPv6 address', 'AAAA', 'Quad-A.'], ['shop.example is an alias of shopify host', 'CNAME', 'Canonical name.'], ['Which server receives mail for the domain', 'MX', 'Mail exchanger.'], ['Lists servers allowed to send mail for the domain', 'TXT (SPF)', 'Sender Policy Framework.'], ['Publishes the public key used to verify mail signatures', 'TXT (DKIM)', 'DomainKeys Identified Mail.'], ['Tells receivers to reject or quarantine mail failing checks', 'TXT (DMARC)', 'Policy and reporting.'], ['The scanner needs the same address every time from DHCP', 'DHCP reservation', 'MAC-based.'], ['Separate guest Wi-Fi traffic from staff on the same switches', 'VLAN', 'Segmentation.'], ['Encrypt traffic for staff working from hotels', 'VPN', 'Tunnel.']],
+    'DNS records, DHCP settings, VLANs and VPNs — the four configuration families of 2.4.');
+
+  RK.add({ track: TR, id: '2.4', dom: 2, short: 'Network configuration', title: 'Explain common network configuration concepts',
+    goal: 'Explain DNS record types (A, AAAA, CNAME, MX, TXT with SPF/DKIM/DMARC), DHCP leases/reservations/scopes/exclusions, VLANs and VPNs.',
+    kw: /\b(a record|aaaa|cname|mx record|txt record|spf|dkim|dmarc|dns record|lease|reservation|scope|exclusion|vlan|vpn|virtual private)/,
+    parts: [
+      P('DNS records and spam management', 'Explain A, AAAA, CNAME, MX and TXT records, and how SPF, DKIM and DMARC fight spam.',
+        `<table><tr><th>Record</th><th>Purpose</th></tr>
+<tr><td><b>A</b></td><td>Name → IPv4 address</td></tr>
+<tr><td><b>AAAA</b></td><td>Name → IPv6 address</td></tr>
+<tr><td><b>CNAME</b></td><td>Alias: one name points to another name</td></tr>
+<tr><td><b>MX</b></td><td>Mail exchanger: which server receives the domain\'s email (lowest preference number tried first)</td></tr>
+<tr><td><b>TXT</b></td><td>Free text; used for domain verification and <b>spam management</b>:</td></tr></table>
+<ul><li><b>SPF</b> (Sender Policy Framework) — lists the servers allowed to send mail for the domain.</li>
+<li><b>DKIM</b> (DomainKeys Identified Mail) — the sending server signs each message; the public key is published in DNS so receivers can verify it was not forged or altered.</li>
+<li><b>DMARC</b> — tells receivers what to do if SPF/DKIM fail (<code>none</code>, <code>quarantine</code>, <code>reject</code>) and where to send reports.</li></ul>` + pro('When a company adds a new service that sends mail as its domain (marketing, ticketing, invoicing), update SPF and publish its DKIM key before go-live — or customers will see it in spam.') + trap('MX points to a name, not an IP address, and that name needs its own A/AAAA record. A CNAME cannot be used for the MX target.'),
+        [['Which record maps a name to an IPv6 address?', 'AAAA', ['A', 'MX', 'CNAME'], 'Quad-A.'],
+         ['Which TXT-based standard tells receivers to quarantine or reject failing mail?', 'DMARC', ['SPF', 'DKIM', 'MX'], 'Policy.']],
+        'c1-dns'),
+      P('DHCP, VLANs and VPNs', 'Explain DHCP leases, reservations, scopes and exclusions, VLANs and VPNs.',
+        `<p><b>DHCP</b> automatically configures clients (DORA: Discover, Offer, Request, Acknowledge).</p>
+<ul><li><b>Scope</b> — the pool of addresses for a subnet plus options (subnet mask, gateway, DNS servers).</li>
+<li><b>Leases</b> — how long a client keeps its address; it tries to renew at 50% of the lease time.</li>
+<li><b>Reservations</b> — a specific address always given to a specific MAC address (printers, servers that use DHCP).</li>
+<li><b>Exclusions</b> — addresses inside the scope that DHCP will never hand out (kept for statically configured devices).</li></ul>
+<p><b>VLAN</b> (virtual LAN) — splits one physical switch into separate logical networks (staff, guest, VoIP, IoT). Traffic between VLANs must go through a router or firewall.</p>
+<p><b>VPN</b> (virtual private network) — an encrypted tunnel across an untrusted network. <i>Remote-access</i> VPN connects a user to the office; <i>site-to-site</i> VPN links two offices.</p>` + pro('Give printers DHCP reservations rather than static addresses typed on the printer — you manage every address in one place and avoid duplicates.') + trap('A reservation guarantees an address to one device; an exclusion keeps an address from being given to any device.'),
+        [['Which DHCP setting always gives the same address to a device\'s MAC address?', 'Reservation', ['Exclusion', 'Scope', 'Lease'], 'MAC-based.'],
+         ['What separates guest and staff traffic on the same physical switch?', 'VLANs', ['A longer DHCP lease', 'An MX record', 'A CNAME'], 'Logical segmentation.']],
+        'c1-netcfg')
+    ],
+    wrap: { recap: ['A = IPv4, AAAA = IPv6, CNAME = alias, MX = mail server, TXT = text.', 'SPF = allowed senders; DKIM = signature key; DMARC = policy (none/quarantine/reject) + reports.', 'DHCP scope = pool + options; lease = time; reservation = same address per MAC; exclusion = never handed out.', 'VLAN = logical network on shared switches; routing/firewall between VLANs.', 'VPN = encrypted tunnel; remote access or site-to-site.', 'Check DNS with nslookup -type=mx / -type=txt.'], lab: 'c1-cfg-wrap' }
+  });
+})();
+
+;
+/* A+ Core 1 (220-1201) — Domain 2.0 Networking — objectives 2.5 to 2.8 + domain wrap lab + extras */
+(function () {
+  var RK = window.RK, P = RK.P, M = RK.M, O = RK.O, T = RK.T, TR = 'core1';
+  function pro(t) { return '<div class="callout pro"><b class="k">On the job</b>' + t + '</div>'; }
+  function trap(t) { return '<div class="callout trap"><b class="k">Exam trap</b>' + t + '</div>'; }
+
+  // ===================== 2.5 Networking hardware =====================
+  M('c1-nethw', 'Which device?', 'Router, switch, AP, patch panel, firewall, PoE',
+    'Pick the device.', ['Router', 'Unmanaged switch', 'Managed switch', 'Access point', 'Patch panel', 'Firewall', 'PoE injector', 'PoE switch'],
+    [['Connects the office LAN to the Internet and forwards between IP networks', 'Router', 'Layer 3, between networks.'], ['Plug-and-play 8-port switch with no settings for a small office', 'Unmanaged switch', 'No VLANs, no monitoring.'], ['Switch configured with VLANs, port security and SNMP monitoring', 'Managed switch', 'Configurable.'], ['Lets laptops join the wired network over Wi-Fi', 'Access point', 'Wireless to wired bridge.'], ['Rack panel where wall-jack cables terminate before patch cables run to the switch', 'Patch panel', 'Cable management.'], ['Allows or blocks traffic by rule between the LAN and the Internet', 'Firewall', 'Filtering.'], ['Powers a single camera from a normal switch port', 'PoE injector', 'Adds power to one cable.'], ['Powers 24 phones and APs directly from their network ports', 'PoE switch', 'Built-in power.']],
+    'Switches connect devices in one network (MAC addresses); routers connect networks (IP addresses).');
+  T('c1-mac', 'Reserve an address for the new printer', 'Find a physical MAC address',
+    'Ticket: a new network printer took a random DHCP address (192.168.10.57). You need its MAC address to create a DHCP reservation on the SOHO router. Command Prompt on a PC in the same network.',
+    { shell: 'cmd', prompt: 'C:\\Users\\tech>' },
+    [{ t: 'Show this PC\'s own adapters with their physical (MAC) addresses.', accept: [/^getmac( \/v)?$/i, /^ipconfig \/all$/i], show: 'getmac /v', hint: 'getmac /v (or ipconfig /all → Physical Address)', out: 'Connection Name Network Adapter              Physical Address\n=============== ============================ =================\nEthernet        Intel(R) Ethernet I219-LM    3C-52-82-1A-77-04', ask: { q: 'How many bits long is a MAC address? (number)', accept: ['48'], why: '48 bits = 12 hex digits. The first half (OUI) identifies the NIC manufacturer.' }, why: 'Physical MAC address = burned into the NIC.' },
+     { t: 'Reach the printer once so this PC learns its MAC address.', accept: [/^ping 192\.168\.10\.57( -n \d+)?$/i], show: 'ping 192.168.10.57', hint: 'ping <printer IP>', out: 'Reply from 192.168.10.57: bytes=32 time=2ms TTL=64', why: 'Any traffic triggers ARP, which maps the IP to a MAC.' },
+     { t: 'Show the ARP cache entry for the printer.', accept: [/^arp -a( 192\.168\.10\.57)?$/i], show: 'arp -a 192.168.10.57', hint: 'arp -a <IP>', out: 'Interface: 192.168.10.23 --- 0x7\n  Internet Address      Physical Address      Type\n  192.168.10.57         00-1b-a9-4c-8e-21     dynamic', ask: { q: 'What is the printer\'s MAC address?', accept: ['00-1b-a9-4c-8e-21', '00:1b:a9:4c:8e:21', '001ba94c8e21'], why: 'Use this in the router\'s DHCP reservation so the printer always gets the same address.' }, why: 'ARP only works inside the local network — across a router you would see the router\'s MAC.' }],
+    'Every NIC has a physical MAC address. Switches forward by MAC; DHCP reservations and port security use it.',
+    ['getmac /v, ping, arp -a.']);
+  M('c1-wan-hw', 'Which Internet device?', 'Cable modem, DSL, ONT, NIC',
+    'Pick the device.', ['Cable modem', 'DSL modem', 'ONT', 'NIC'],
+    [['Connects to the coaxial line from the cable company', 'Cable modem', 'DOCSIS over coax.'], ['Connects to the telephone line', 'DSL modem', 'Copper phone pair.'], ['Box on the wall where the fiber line ends at a home', 'ONT', 'Optical network terminal.'], ['The port inside a PC that connects it to the network', 'NIC', 'Network interface card.'], ['Uses the same cable as cable TV', 'Cable modem', 'Coax.'], ['Converts light on fiber to Ethernet', 'ONT', 'Fiber termination.']],
+    'The ISP device depends on the medium: coax → cable modem, phone line → DSL, fiber → ONT.');
+
+  RK.add({ track: TR, id: '2.5', dom: 2, short: 'Networking hardware', title: 'Compare and contrast common networking hardware devices',
+    goal: 'Compare routers, managed and unmanaged switches, access points, patch panels, firewalls, PoE, cable/DSL modems, ONTs, NICs and MAC addresses.',
+    kw: /\b(router|switch(es)?|unmanaged|managed switch|access point|patch panel|firewall|poe|power over ethernet|injector|802\.3a[ft]|802\.3bt|cable modem|dsl|ont|optical network terminal|nic\b|network interface card|mac address)/,
+    parts: [
+      P('Routers, switches, APs, patch panels, firewalls, PoE', 'Compare the core LAN devices and Power over Ethernet options.',
+        `<ul><li><b>Router</b> — connects different IP networks (e.g. LAN to Internet) and picks the path. SOHO routers also do NAT, DHCP, Wi-Fi and a basic firewall.</li>
+<li><b>Switch</b> — connects devices inside one network and forwards frames by MAC address.
+<ul><li><b>Unmanaged</b> — plug and play, no settings.</li><li><b>Managed</b> — VLANs, port security, link aggregation, monitoring (SNMP), remote management.</li></ul></li>
+<li><b>Access point</b> — connects wireless clients to the wired network.</li>
+<li><b>Patch panel</b> — rack-mounted termination point for in-wall cables; short patch cables connect panel ports to switch ports.</li>
+<li><b>Firewall</b> — allows or blocks traffic by rules (IP, port, application).</li>
+<li><b>Power over Ethernet (PoE)</b> — power and data on one cable for APs, phones, cameras.
+<ul><li><b>PoE switch</b> (power on every port) or <b>injector</b> (adds power to one cable).</li>
+<li><b>Standards</b>: 802.3af PoE (15.4 W), 802.3at PoE+ (30 W), 802.3bt PoE++ (60–100 W).</li></ul></li></ul>` + pro('A new PoE camera that keeps rebooting is often asking for more power than the port budget allows. Check the switch\'s PoE budget and the device\'s class.') + trap('Switch = same network, MAC addresses. Router = between networks, IP addresses.'),
+        [['Which device forwards traffic between different IP networks?', 'Router', ['Unmanaged switch', 'Patch panel', 'Access point'], 'Layer 3.'],
+         ['Which PoE standard provides up to 30 W per port?', '802.3at (PoE+)', ['802.3af', '802.11ax', '802.1X'], 'PoE+.']],
+        'c1-nethw'),
+      P('Modems, ONT, NIC and MAC addresses', 'Compare cable modems, DSL modems and ONTs, and explain NICs and physical MAC addresses.',
+        `<ul><li><b>Cable modem</b> — connects to the cable company\'s coaxial line (DOCSIS).</li>
+<li><b>DSL</b> modem — uses the telephone copper line; speed drops with distance from the provider\'s equipment.</li>
+<li><b>ONT</b> (optical network terminal) — where the ISP\'s fiber ends at the customer; converts light to Ethernet.</li>
+<li><b>NIC</b> (network interface card) — the wired or wireless adapter in each device; built into the motherboard or added as a card/USB adapter.</li>
+<li><b>Physical MAC address</b> — a 48-bit hardware address burned into each NIC, written as 12 hex digits (e.g. 3C-52-82-1A-77-04). The first 24 bits (OUI) identify the manufacturer. Find it with <code>ipconfig /all</code>, <code>getmac</code>, or <code>arp -a</code> for other local devices.</li></ul>
+<p>The modem/ONT connects to the provider; your router plugs into it and runs the LAN.</p>` + pro('Many phones and laptops now use a random (private) MAC address per Wi-Fi network. If a DHCP reservation or MAC filter "stops working" for a phone, turn private address off for that network.') + trap('A MAC address is Layer 2 and stays inside the local network; an IP address is Layer 3 and is routed.'),
+        [['Which device terminates a fiber connection at the customer premises?', 'ONT', ['Cable modem', 'DSL modem', 'Patch panel'], 'Optical network terminal.'],
+         ['How long is a MAC address?', '48 bits', ['32 bits', '64 bits', '128 bits'], '12 hex digits.']],
+        'c1-mac')
+    ],
+    wrap: { recap: ['Router between networks (IP); switch inside a network (MAC); managed vs unmanaged.', 'Access point = wireless onto the wired LAN; patch panel = cable termination in the rack.', 'Firewall filters by rules.', 'PoE: switch or injector; af 15.4 W, at 30 W, bt 60–100 W.', 'ISP devices: cable modem (coax), DSL (phone line), ONT (fiber).', 'NIC has a 48-bit physical MAC address; find with ipconfig /all, getmac, arp -a.'], lab: 'c1-wan-hw' }
+  });
+
+  // ===================== 2.6 SOHO network IP configuration =====================
+  T('c1-ipcfg', 'New PC has no Internet', 'APIPA, DHCP and static addressing',
+    'Ticket: a new PC in a small office cannot reach anything. The SOHO router (192.168.1.1) is the DHCP server. Command Prompt (elevated).',
+    { shell: 'cmd', prompt: 'C:\\Windows\\system32>' },
+    [{ t: 'Show the PC\'s IP configuration.', accept: [/^ipconfig$/i, /^ipconfig \/all$/i], show: 'ipconfig', hint: 'ipconfig', out: 'Ethernet adapter Ethernet:\n   Link-local IPv6 Address . . . . . : fe80::9c1:4d2e:7a10:3b5%7\n   Autoconfiguration IPv4 Address. . : 169.254.38.112\n   Subnet Mask . . . . . . . . . . . : 255.255.0.0\n   Default Gateway . . . . . . . . . :', ask: { q: 'A 169.254.x.x address is called what?', accept: ['apipa', 'automatic private ip addressing', 'link-local'], why: 'APIPA: Windows could not reach a DHCP server, so it gave itself a link-local address with no gateway. Check the cable/port and the DHCP server.' }, why: 'APIPA = DHCP failed.' },
+     { t: 'The patch cable was in the wrong switch port and is now fixed. Ask DHCP for a new address.', accept: [/^ipconfig \/renew$/i], show: 'ipconfig /renew', hint: 'ipconfig /renew', out: 'Ethernet adapter Ethernet:\n   IPv4 Address. . . . . . . . . . . : 192.168.1.23\n   Subnet Mask . . . . . . . . . . . : 255.255.255.0\n   Default Gateway . . . . . . . . . : 192.168.1.1', ask: { q: 'Is 192.168.1.23 a private or public address?', accept: ['private'], why: '192.168.0.0/16 is private (RFC 1918), as are 10.0.0.0/8 and 172.16.0.0/12. The router translates (NAT) to its one public address.' }, why: 'Dynamic address from DHCP.' },
+     { t: 'Show the full details, including the DHCP server and lease.', accept: [/^ipconfig \/all$/i], show: 'ipconfig /all', hint: 'ipconfig /all', out: '   DHCP Enabled. . . . . . . . . . . : Yes\n   IPv6 Address. . . . . . . . . . . : 2001:db8:a1:5::23\n   DHCP Server . . . . . . . . . . . : 192.168.1.1\n   Lease Obtained. . . . . . . . . . : Tuesday, November 17, 2026 4:31 PM\n   Lease Expires . . . . . . . . . . : Wednesday, November 18, 2026 4:31 PM\n   DNS Servers . . . . . . . . . . . : 192.168.1.1', ask: { q: 'How many hours is the lease? (number)', accept: ['24'], why: 'A 24-hour lease. The PC also has a global IPv6 address (2001:db8:…) and a link-local fe80:: address.' }, why: 'Read the lease and the server.' },
+     { t: 'Test the default gateway.', accept: [/^ping 192\.168\.1\.1( -n \d+)?$/i], show: 'ping 192.168.1.1', hint: 'ping <gateway>', out: 'Reply from 192.168.1.1: bytes=32 time<1ms TTL=64', why: 'Local network works; Internet access follows.' },
+     { t: 'The office NAS must never change address. Give the NAS\'s adapter "Ethernet" a static address 192.168.1.10, mask 255.255.255.0, gateway 192.168.1.1 (you are now on the NAS).', accept: [/^netsh interface (ipv4|ip) set address (name=)?"?ethernet"? (source=)?static 192\.168\.1\.10 255\.255\.255\.0 192\.168\.1\.1$/i], show: 'netsh interface ipv4 set address name="Ethernet" static 192.168.1.10 255.255.255.0 192.168.1.1', hint: 'netsh interface ipv4 set address name="Ethernet" static <ip> <mask> <gateway>', out: '', why: 'Static address outside the DHCP pool (or excluded) so it never conflicts.' }],
+    'Read ipconfig: 169.254 = APIPA (no DHCP); private vs public; mask; gateway; lease. Static for servers/printers outside the DHCP pool.',
+    ['ipconfig, ipconfig /renew, ipconfig /all, netsh interface ipv4 set address.']);
+  M('c1-ippick', 'Read the address', 'IPv4, IPv6, APIPA, static, dynamic',
+    'Pick what the address or setting is.', ['Private IPv4', 'Public IPv4', 'APIPA', 'IPv6 link-local', 'IPv6 global', 'Loopback', 'Subnet mask', 'Default gateway'],
+    [['10.20.4.15', 'Private IPv4', '10.0.0.0/8.'], ['172.20.1.5', 'Private IPv4', '172.16.0.0–172.31.255.255.'], ['8.8.8.8', 'Public IPv4', 'Routable on the Internet.'], ['169.254.77.2', 'APIPA', 'No DHCP response.'], ['fe80::1c2b:3a4d', 'IPv6 link-local', 'Always present on IPv6 interfaces.'], ['2001:db8:12::40', 'IPv6 global', 'Global unicast (2000::/3).'], ['127.0.0.1', 'Loopback', 'This computer.'], ['255.255.255.0', 'Subnet mask', 'Network vs host portion.'], ['192.168.1.1 in a PC\'s settings: where traffic for other networks goes', 'Default gateway', 'The router.']],
+    'Private ranges: 10/8, 172.16/12, 192.168/16. APIPA 169.254/16. IPv6 link-local fe80::/10.');
+
+  O('c1-soho-wrap', 'Set up a SOHO router', 'Combined 2.6',
+    'Put the SOHO addressing setup in order.',
+    [['Change the router admin password from the default', 'First, before anything else.'],
+     ['Set the router LAN address and subnet mask (192.168.1.1, 255.255.255.0)', 'This becomes every client\'s default gateway.'],
+     ['Enable the DHCP server with a pool (192.168.1.100–192.168.1.200) and DNS servers', 'Dynamic addresses for clients.'],
+     ['Keep 192.168.1.2–192.168.1.99 outside the pool for static devices and reservations', 'No conflicts.'],
+     ['Give the NAS and printer static addresses or DHCP reservations in that block', 'Addresses that never change.'],
+     ['Confirm IPv6 is enabled from the ISP and clients get global and fe80:: addresses', 'Dual stack.'],
+     ['Test a client: ipconfig shows a private address, mask and gateway; ping the gateway and a website', 'Verify.']],
+    'Gateway, pool, static block, reservations, IPv6, test — the SOHO addressing checklist.');
+
+  RK.add({ track: TR, id: '2.6', dom: 2, short: 'SOHO IP configuration', title: 'Given a scenario, configure basic wired/wireless small office/home office (SOHO) networks',
+    goal: 'Configure and read IPv4 and IPv6 addressing: private/public, APIPA, static vs dynamic, subnet mask and gateway.',
+    kw: /\b(ipv4|ipv6|apipa|169\.254|private (ip|address)|public (ip|address)|static (ip|address)|dynamic|subnet mask|default gateway|soho|192\.168|10\.0\.0|172\.16|nat\b|link.local)/,
+    parts: [
+      P('IPv4: private, public, mask and gateway', 'Read and assign IPv4 addresses, subnet masks and default gateways, including private and public ranges.',
+        `<p>An <b>IPv4</b> address is 32 bits written as four numbers (192.168.1.23). The <b>subnet mask</b> (255.255.255.0 or /24) says which part is the network and which part is the host. Devices in the same subnet talk directly; anything else goes to the <b>gateway</b> (the router).</p>
+<table><tr><th>Type</th><th>Range</th><th>Use</th></tr>
+<tr><td><b>Private</b></td><td>10.0.0.0/8 · 172.16.0.0–172.31.255.255 · 192.168.0.0/16</td><td>Inside LANs; not routed on the Internet. The SOHO router uses <b>NAT</b> to share one public address.</td></tr>
+<tr><td><b>Public</b></td><td>Everything else (assigned by ISPs)</td><td>Routable on the Internet.</td></tr>
+<tr><td><b>APIPA</b></td><td>169.254.0.0/16</td><td>Self-assigned when DHCP fails; no gateway → no Internet.</td></tr>
+<tr><td>Loopback</td><td>127.0.0.1</td><td>Tests the local TCP/IP stack.</td></tr></table>` + pro('A 169.254 address is a symptom, not the problem. Check the cable, switch port, VLAN, Wi-Fi association and whether the DHCP server is up before touching the PC\'s settings.') + trap('172.32.x.x is public — the private 172 range stops at 172.31.255.255.'),
+        [['A PC shows 169.254.10.4. What happened?', 'It could not reach a DHCP server (APIPA)', ['It has a public address', 'It is using IPv6', 'Its gateway is correct'], 'APIPA.'],
+         ['Which address is private?', '172.18.5.9', ['172.40.5.9', '8.8.4.4', '203.0.113.9'], '172.16–172.31.']],
+        'c1-ippick'),
+      P('Static vs dynamic, and IPv6', 'Choose static or dynamic addressing for each device and recognize IPv6 addresses.',
+        `<ul><li><b>Dynamic</b> (DHCP) — the default for PCs, phones and laptops; easy to manage, no duplicates.</li>
+<li><b>Static</b> — typed in by hand (address, mask, gateway, DNS). Use for routers, servers, NAS, some printers — or give them DHCP reservations instead. Keep static addresses outside the DHCP pool.</li>
+<li><b>IPv6</b> — 128 bits in hex, e.g. 2001:db8:a1:5::23 (:: replaces a run of zeros). Every IPv6 interface has a <b>link-local</b> address (fe80::) and usually a <b>global</b> address. No NAT and no broadcast; devices can configure themselves (SLAAC) or use DHCPv6.</li></ul>
+<p>SOHO setup on the router: set LAN address and mask, enable the DHCP server with a pool, set DNS, keep a block outside the pool for static devices.</p>` + pro('Keep a small spreadsheet of every static and reserved address in a small office. Duplicate IP conflicts are the classic SOHO ticket.') + trap('fe80:: is link-local IPv6 — like APIPA it only works on the local link, but unlike APIPA its presence is normal.'),
+        [['Which device should normally get a static IP or a DHCP reservation?', 'A network printer or NAS', ['A guest\'s phone', 'A visitor laptop', 'Every user PC'], 'Must not change.'],
+         ['Which prefix is an IPv6 link-local address?', 'fe80::', ['2001:db8::', '169.254', '127.0.0.1'], 'Link-local.']],
+        'c1-ipcfg')
+    ],
+    wrap: { recap: ['IPv4 = 32 bits; subnet mask separates network and host; gateway = router for other networks.', 'Private: 10/8, 172.16–172.31, 192.168/16 (NAT to one public IP). Public = Internet-routable.', 'APIPA 169.254.x.x = no DHCP; no gateway, no Internet.', 'Dynamic (DHCP) for clients; static or reservations for servers, NAS, printers, outside the pool.', 'IPv6 = 128-bit hex; fe80:: link-local + global; :: shortens zeros.', 'Tools: ipconfig, ipconfig /all, /renew, netsh interface ipv4 set address.'], lab: 'c1-soho-wrap' }
+  });
+
+  // ===================== 2.7 Internet connection & network types =====================
+  M('c1-inet', 'Which Internet connection?', 'Satellite, fiber, cable, DSL, cellular, WISP',
+    'Pick the connection type.', ['Satellite', 'Fiber', 'Cable', 'DSL', 'Cellular', 'Wireless Internet service provider (WISP)'],
+    [['Remote ranch with no wired service; latency affected by weather (low-orbit service improves latency)', 'Satellite', 'Space link.'], ['Symmetric gigabit and lowest latency in town', 'Fiber', 'Light over glass.'], ['Shares coax with TV service; neighborhood bandwidth is shared', 'Cable', 'DOCSIS.'], ['Uses the phone line; speed falls with distance from the exchange', 'DSL', 'Copper.'], ['5G home Internet or a phone hotspot', 'Cellular', 'Mobile network.'], ['Local provider beams service from a tower to a dish on the roof', 'Wireless Internet service provider (WISP)', 'Fixed wireless.']],
+    'Compare by speed, latency, availability and cost.');
+  M('c1-nettype', 'Which network type?', 'LAN, WAN, PAN, MAN, SAN, WLAN',
+    'Pick the network type.', ['LAN', 'WAN', 'PAN', 'MAN', 'SAN', 'WLAN'],
+    [['All PCs and printers in one office building', 'LAN', 'Local area network.'], ['Head office and three branches across the country', 'WAN', 'Wide area network.'], ['Phone, smartwatch and earbuds', 'PAN', 'Personal area network.'], ['City-wide network linking libraries and schools', 'MAN', 'Metropolitan area network.'], ['Dedicated high-speed network giving servers block-level disk storage', 'SAN', 'Storage area network.'], ['The office Wi-Fi', 'WLAN', 'Wireless LAN.']],
+    'Size order: PAN < LAN/WLAN < MAN < WAN. SAN is about storage, not size.');
+  M('c1-conn-wrap', 'Connectivity advisor', 'Combined 2.7',
+    'Pick the best fit.', ['Fiber', 'Cable', 'DSL', 'Cellular', 'Satellite', 'WISP', 'SAN', 'WAN'],
+    [['Video studio uploading huge files needs fast upload', 'Fiber', 'Symmetric speeds.'], ['Home in a suburb, TV provider offers Internet bundle', 'Cable', 'Coax.'], ['Rural farmhouse with only a phone line', 'DSL', 'Copper.'], ['Construction trailer for 6 months', 'Cellular', '5G/4G router.'], ['Cabin with no towers or wires in sight', 'Satellite', 'Anywhere with sky view.'], ['Small town with a local tower-based provider', 'WISP', 'Fixed wireless.'], ['Virtualization hosts need shared fast block storage', 'SAN', 'Storage network.'], ['Link branch offices to the data center', 'WAN', 'Wide area.']],
+    'Match need (upload, latency, location, duration) to connection type.');
+
+  RK.add({ track: TR, id: '2.7', dom: 2, short: 'Internet & network types', title: 'Compare and contrast Internet connection types, network types, and their characteristics',
+    goal: 'Compare satellite, fiber, cable, DSL, cellular and WISP connections, and LAN, WAN, PAN, MAN, SAN and WLAN networks.',
+    kw: /\b(satellite|fiber|cable (internet|broadband)|dsl|cellular|wisp|fixed wireless|lan\b|wan\b|pan\b|man\b|san\b|wlan|metropolitan|storage area|personal area|wide area|local area|connection type)/,
+    parts: [
+      P('Internet connection types', 'Compare satellite, fiber, cable, DSL, cellular and WISP Internet connections.',
+        `<table><tr><th>Type</th><th>Medium</th><th>Characteristics</th></tr>
+<tr><td><b>Fiber</b></td><td>Light in glass to an ONT</td><td>Fastest, often symmetric (same up/down), lowest latency; limited availability.</td></tr>
+<tr><td><b>Cable</b></td><td>Coax (DOCSIS)</td><td>Fast download, slower upload; bandwidth shared with the neighborhood.</td></tr>
+<tr><td><b>DSL</b></td><td>Telephone line</td><td>Slower; speed drops with distance from the provider.</td></tr>
+<tr><td><b>Cellular</b></td><td>4G/5G radio</td><td>Mobile, quick to deploy; data caps; varies with signal.</td></tr>
+<tr><td><b>Satellite</b></td><td>Dish to satellite</td><td>Available almost anywhere; geostationary = high latency (600 ms+); low Earth orbit is much better; weather can affect it.</td></tr>
+<tr><td><b>WISP</b></td><td>Fixed wireless from a local tower</td><td>Rural option; needs line of sight to the tower.</td></tr></table>` + pro('For VoIP and video calls, latency and upload speed matter more than the advertised download number. Ask for both before recommending a connection.') + trap('Traditional satellite has the highest latency of any option — bad for real-time gaming and VoIP, even when bandwidth is fine.'),
+        [['Which connection type usually has the highest latency?', 'Geostationary satellite', ['Fiber', 'Cable', 'DSL'], 'Distance to orbit.'],
+         ['Which uses the telephone line?', 'DSL', ['Cable', 'Fiber', 'WISP'], 'Copper phone pair.']],
+        'c1-inet'),
+      P('Network types', 'Compare LAN, WAN, PAN, MAN, SAN and WLAN.',
+        `<ul><li><b>PAN</b> (personal area network) — devices around one person, usually Bluetooth: phone, watch, earbuds.</li>
+<li><b>LAN</b> (local area network) — one building or campus, high speed, owned by the organization.</li>
+<li><b>WLAN</b> (wireless LAN) — the Wi-Fi part of a LAN.</li>
+<li><b>MAN</b> (metropolitan area network) — spans a city: a city government or university linking sites across town.</li>
+<li><b>WAN</b> (wide area network) — connects distant sites (branches, data centers); the Internet is the largest WAN. Usually leased from carriers.</li>
+<li><b>SAN</b> (storage area network) — a dedicated, high-speed network that gives servers block-level access to shared storage (Fibre Channel or iSCSI).</li></ul>` + pro('"WAN is slow" tickets at a branch usually mean the WAN link is saturated (backups or updates in business hours), not a LAN fault — check the link\'s utilization first.') + trap('SAN (storage area network) is not about size; NAS is a single file-sharing device on the LAN, a SAN is a separate block-storage network.'),
+        [['Which network type connects a phone to a smartwatch?', 'PAN', ['MAN', 'WAN', 'SAN'], 'Personal area.'],
+         ['Which network gives servers block-level access to shared storage?', 'SAN', ['WLAN', 'PAN', 'MAN'], 'Storage area network.']],
+        'c1-nettype')
+    ],
+    wrap: { recap: ['Fiber: fastest, symmetric, low latency. Cable: coax, shared, fast down.', 'DSL: phone line, distance-limited. Cellular: 4G/5G, data caps.', 'Satellite: anywhere, high latency (LEO better). WISP: fixed wireless from a tower.', 'PAN (person) < LAN/WLAN (building) < MAN (city) < WAN (distant sites).', 'SAN: dedicated block-storage network for servers.', 'Choose by speed, upload, latency, availability, cost.'], lab: 'c1-conn-wrap' }
+  });
+
+  // ===================== 2.8 Networking tools =====================
+  M('c1-tools', 'Which tool?', 'Crimper, stripper, Wi-Fi analyzer, toner probe, punchdown, cable tester, loopback, tap',
+    'Pick the tool.', ['Crimper', 'Cable stripper', 'Wi-Fi analyzer', 'Toner probe', 'Punchdown tool', 'Cable tester', 'Loopback plug', 'Network tap'],
+    [['Attach an RJ45 connector to the end of a cable', 'Crimper', 'Crimps the pins.'], ['Remove the outer jacket without nicking the wires', 'Cable stripper', 'Strip first.'], ['Find the least-crowded channel and map signal strength', 'Wi-Fi analyzer', 'Wireless survey.'], ['Find which unlabeled wall cable lands on which patch panel port', 'Toner probe', 'Tone and trace.'], ['Terminate wires into a patch panel or keystone jack', 'Punchdown tool', '110 block.'], ['Check a new cable for opens, shorts and miswires', 'Cable tester', 'Continuity and pinout.'], ['Test whether a NIC or switch port can send and receive', 'Loopback plug', 'Loops transmit to receive.'], ['Copy all traffic on a link to a monitoring device', 'Network tap', 'Passive monitoring.']],
+    'Make (stripper, crimper, punchdown) → find (toner probe) → test (cable tester, loopback) → see (Wi-Fi analyzer, tap).');
+  O('c1-t568b', 'Build a T568B patch cable', 'Wire order on the connector',
+    'Hold the RJ45 connector clip down, contacts facing you. Put the wire colors in order from pin 1 to pin 8 for T568B.',
+    [['Pin 1: white/orange', 'T568B starts with the orange pair.'], ['Pin 2: orange', ''], ['Pin 3: white/green', ''], ['Pin 4: blue', ''], ['Pin 5: white/blue', ''], ['Pin 6: green', 'Green pair splits across 3 and 6.'], ['Pin 7: white/brown', ''], ['Pin 8: brown', 'Then crimp and test with a cable tester.']],
+    'T568A swaps the orange and green pairs. Same standard on both ends = straight-through; A on one end, B on the other = crossover.');
+  O('c1-cable-order', 'Run a new drop to a desk', 'Combined 2.8',
+    'Put the steps in order.',
+    [['Use a toner probe to identify the unlabeled cable at the patch panel', 'Find it first.'], ['Strip the jacket with a cable stripper', 'Do not nick the pairs.'], ['Punch the wires down on the patch panel with a punchdown tool (T568B)', 'Panel end.'], ['Crimp an RJ45 connector on the desk patch cable with a crimper', 'Desk end.'], ['Test the run with a cable tester', 'Verify pinout and continuity.'], ['Plug in and confirm link; test the switch port with a loopback plug if no link', 'Isolate port vs cable.']],
+    'Find → strip → terminate → test. Every new cable gets tested before it is called done.');
+
+  RK.add({ track: TR, id: '2.8', dom: 2, short: 'Networking tools', title: 'Explain networking tools and their purposes',
+    goal: 'Choose the right tool: crimper, cable stripper, Wi-Fi analyzer, toner probe, punchdown tool, cable tester, loopback plug, network tap.',
+    kw: /\b(crimp|stripper|wi.?fi analyzer|toner|tone generator|probe|punch.?down|cable tester|loopback plug|network tap|t568[ab])/,
+    parts: [
+      P('Cable-making and cable-finding tools', 'Use a cable stripper, crimper, punchdown tool and toner probe, and wire T568A/B.',
+        `<ul><li><b>Cable stripper</b> — removes the outer jacket (and insulation) cleanly.</li>
+<li><b>Crimper</b> — presses an RJ45 (or RJ11) connector onto the wires.</li>
+<li><b>Punchdown tool</b> — seats and trims wires into a patch panel, keystone jack or 110/66 block.</li>
+<li><b>Toner probe</b> — a tone generator clips onto one end; the probe beeps near the matching cable at the other end. Finds unlabeled cables.</li></ul>
+<p>Wiring standards: <b>T568B</b> pin order is white/orange, orange, white/green, blue, white/blue, green, white/brown, brown. <b>T568A</b> swaps the orange and green pairs. Use the same standard on both ends for a normal (straight-through) cable.</p>` + pro('Label both ends of every cable you install, and update the patch-panel map. Future-you with a toner probe will be grateful.') + trap('A crimper is for connectors on cable ends; a punchdown tool is for terminating wires into panels and jacks.'),
+        [['Which tool finds the far end of an unlabeled cable?', 'Toner probe', ['Crimper', 'Loopback plug', 'Punchdown tool'], 'Tone and trace.'],
+         ['What is pin 1 in T568B?', 'White/orange', ['White/green', 'Blue', 'Brown'], 'Orange pair first.']],
+        'c1-t568b'),
+      P('Testing and monitoring tools', 'Use a cable tester, loopback plug, Wi-Fi analyzer and network tap.',
+        `<ul><li><b>Cable tester</b> — checks continuity, opens, shorts and miswires (wrong pin order). Advanced testers certify length and speed.</li>
+<li><b>Loopback plug</b> — connects a port\'s transmit pins to its receive pins so you can test a NIC or switch port by itself.</li>
+<li><b>Wi-Fi analyzer</b> — software or hardware that shows nearby networks, channels, signal strength and interference; used for channel selection and site surveys.</li>
+<li><b>Network tap</b> — sits inline on a link and copies all traffic to a monitoring or security tool without changing it.</li></ul>
+<p>Troubleshooting order for "no link": swap the patch cable → test the run with a cable tester → test the port with a loopback plug → check the NIC.</p>` + pro('A phone Wi-Fi analyzer app and a walk around the office solve most "Wi-Fi is bad in that corner" tickets: you see the signal drop and the crowded channels.') + trap('A cable tester tests the cable; a loopback plug tests the port. Pick the tool that matches the part in doubt.'),
+        [['Which tool tests whether a switch port itself can send and receive?', 'Loopback plug', ['Cable stripper', 'Toner probe', 'Crimper'], 'Loops TX to RX.'],
+         ['Which tool shows channel use and signal strength of nearby wireless networks?', 'Wi-Fi analyzer', ['Network tap', 'Punchdown tool', 'Cable tester'], 'Wireless survey.']],
+        'c1-tools')
+    ],
+    wrap: { recap: ['Cable stripper removes jacket; crimper attaches RJ45; punchdown tool terminates into panels/jacks.', 'T568B: w/o, o, w/g, bl, w/bl, g, w/br, br; T568A swaps orange and green.', 'Toner probe finds unlabeled cables.', 'Cable tester: continuity, shorts, miswires. Loopback plug: tests a port/NIC.', 'Wi-Fi analyzer: channels and signal. Network tap: copies traffic for monitoring.', 'Always test a new cable before calling it done.'], lab: 'c1-cable-order' }
+  });
+
+  // ===================== Domain 2 combined lab =====================
+  T('c1-d2-wrap', 'Domain 2 shift: the new branch office', 'Networking in one ticket',
+    'Ticket: first day at a new small branch. "Nothing works right." Command Prompt on a staff PC. Each task names its objective; no command hints.',
+    { shell: 'cmd', prompt: 'C:\\Users\\tech>' },
+    [{ t: '<b>2.6</b> — Check the PC\'s address configuration.', accept: [/^ipconfig( \/all)?$/i], show: 'ipconfig', hint: '2.6 — ipconfig', out: '   IPv4 Address. . . . . . . . . . . : 192.168.20.31\n   Subnet Mask . . . . . . . . . . . : 255.255.255.0\n   Default Gateway . . . . . . . . . : 192.168.20.1', why: 'DHCP worked: private address, mask, gateway.' },
+     { t: '<b>2.5</b> — Find the gateway router\'s MAC address in the ARP cache.', accept: [/^arp -a( 192\.168\.20\.1)?$/i], show: 'arp -a 192.168.20.1', hint: '2.5 — arp', out: '  192.168.20.1          b4-fb-e4-11-22-33     dynamic', why: 'Layer 2 to the router is fine.' },
+     { t: '<b>2.4</b> — Confirm DNS resolves the company intranet (intranet.brightpath.example).', accept: [/^nslookup intranet\.brightpath\.example$/i], show: 'nslookup intranet.brightpath.example', hint: '2.4 — nslookup', out: 'Server:  UnKnown\nAddress:  192.168.20.1\n\n*** UnKnown can\'t find intranet.brightpath.example: Non-existent domain', ask: { q: 'Which device is answering DNS?', accept: ['192.168.20.1', 'the router', 'router'], why: 'The branch router is the DNS server and does not know internal names. Point DHCP\'s DNS option at the company DNS server (via the site-to-site VPN).' }, why: '2.3/2.4 — DNS server role and DHCP options.' },
+     { t: '<b>2.2</b> — Wi-Fi users complain too. Check this laptop\'s wireless band and channel.', accept: [/^netsh wlan show interfaces?$/i], show: 'netsh wlan show interfaces', hint: '2.2 — netsh wlan', out: '    Radio type : 802.11n\n    Band       : 2.4 GHz\n    Channel    : 3\n    Signal     : 70%', ask: { q: 'Channel 3 overlaps the clean 2.4 GHz channels. Which of 1, 6 or 11 is closest to move it to? (number)', accept: ['1'], why: 'Use 1, 6 or 11 — and enable 5 GHz on the AP.' }, why: 'Channel selection.' },
+     { t: '<b>2.1</b> — Check whether this PC has an open RDP listener exposed (it should not).', accept: [/^netstat -an(o)? \| findstr (:)?3389$/i, /^netstat -an(o)? \| find "?:?3389"?$/i], show: 'netstat -ano | findstr :3389', hint: '2.1 — netstat filtered for the RDP port', out: '  TCP    0.0.0.0:3389    0.0.0.0:0    LISTENING    1180', why: 'RDP is listening on every interface — disable it on staff PCs or restrict it to the VPN subnet. Ticket documented.' }],
+    'Domain 2 in one ticket: addressing (2.6), hardware/MAC (2.5), DNS/DHCP (2.3–2.4), wireless (2.2), ports (2.1).',
+    ['Each task names its objective.']);
+
+  // ---------- extras + cards ----------
+  RK.extra(TR, '2.1', [
+    ['Which protocol and port should replace Telnet?', 'SSH on TCP 22', ['FTP on 21', 'SMTP on 25', 'HTTP on 80'], 'Encrypted.'],
+    ['Which port does LDAP use?', '389', ['3389', '445', '143'], 'Directory.'],
+    ['Which ports belong to legacy NetBIOS/NetBT?', '137–139', ['20–21', '67–68', '110'], 'Name, datagram, session.'],
+    ['Which port does HTTPS use?', '443', ['80', '8080', '22'], 'TLS web.'],
+    ['Which is the best transport for live voice where late packets are useless?', 'UDP', ['TCP', 'SMB', 'LDAP'], 'Low overhead.'],
+    ['Which port must be open to send email between mail servers?', '25', ['110', '143', '389'], 'SMTP.']
+  ]);
+  RK.extra(TR, '2.2', [
+    ['What does a Wi-Fi analyzer help with most?', 'Choosing a clear channel', ['Crimping cables', 'Assigning MAC addresses', 'Setting DNS records'], 'Channel selection.'],
+    ['Which standard first supported both 2.4 and 5 GHz?', '802.11n', ['802.11b', '802.11g', '802.11ac'], 'Wi-Fi 4.'],
+    ['Why should the AP country code be set correctly?', 'Regulations decide which channels and power levels are legal', ['It changes the SSID', 'It enables NFC', 'It sets the DHCP lease'], 'Regulations.'],
+    ['What is a downside of wide 160 MHz channels in a busy office?', 'Fewer non-overlapping channels and more interference', ['Lower security', 'No IPv6', 'No Bluetooth'], 'Width trade-off.'],
+    ['Which technology is used for inventory tags read at a distance by a scanner?', 'RFID', ['NFC payment', 'Bluetooth LE audio', '802.11be'], 'Radio-frequency ID.'],
+    ['Which Wi-Fi generation can use the 6 GHz band?', 'Wi-Fi 6E and Wi-Fi 7', ['Wi-Fi 4 only', '802.11g', '802.11b'], '6 GHz.']
+  ]);
+  RK.extra(TR, '2.3', [
+    ['Which UDP port does NTP use?', '123', ['514', '53', '161'], 'Time.'],
+    ['Which service would centralize logs from all firewalls?', 'Syslog server', ['Print server', 'DHCP server', 'Web server'], 'Central logs.'],
+    ['Which device acts on behalf of clients to fetch and filter web content?', 'Proxy server', ['Load balancer', 'Patch panel', 'ONT'], 'Proxy.'],
+    ['Which best describes a UTM appliance?', 'One device combining firewall, IPS, antivirus and content filtering', ['A database server', 'A storage network', 'A type of DNS record'], 'All-in-one.'],
+    ['What does a database server provide?', 'Structured data storage for applications', ['Name resolution', 'Time sync', 'IP leases'], 'SQL.'],
+    ['Why put IoT devices on their own VLAN?', 'They are often insecure, so isolation limits damage', ['They need faster Wi-Fi', 'They use IPv6 only', 'They cannot use DHCP'], 'Segmentation.']
+  ]);
+  RK.extra(TR, '2.4', [
+    ['Which record type points www to another host name?', 'CNAME', ['A', 'MX', 'AAAA'], 'Alias.'],
+    ['When does a DHCP client first try to renew its lease?', 'At 50% of the lease time', ['At 10%', 'Only when it expires', 'Every reboot only'], 'T1 renewal.'],
+    ['Which DHCP setting keeps addresses for static devices out of the pool?', 'Exclusion', ['Reservation', 'Lease', 'MX'], 'Never handed out.'],
+    ['What does DKIM publish in DNS?', 'A public key to verify message signatures', ['A list of allowed IPs', 'The mail server address', 'A quarantine policy'], 'Signature verification.'],
+    ['Which VPN type connects two office networks permanently?', 'Site-to-site', ['Remote access', 'Split DNS', 'Captive portal'], 'Office to office.'],
+    ['Traffic between two VLANs must pass through what?', 'A router or Layer 3 device/firewall', ['A patch panel', 'A hub', 'An ONT'], 'Inter-VLAN routing.']
+  ]);
+  RK.extra(TR, '2.5', [
+    ['Which switch type supports VLANs and port security?', 'Managed', ['Unmanaged', 'Hub', 'Patch panel'], 'Configurable.'],
+    ['Which device adds power to one Ethernet cable from a non-PoE switch?', 'PoE injector', ['Patch panel', 'ONT', 'DSL modem'], 'Single-port power.'],
+    ['Which PoE standard provides the most power?', '802.3bt', ['802.3af', '802.3at', '802.11ac'], 'PoE++.'],
+    ['What does the first half of a MAC address identify?', 'The manufacturer (OUI)', ['The subnet', 'The VLAN', 'The DNS server'], 'Organizationally unique identifier.'],
+    ['Which device connects wireless clients to the wired LAN?', 'Access point', ['Router only', 'Patch panel', 'Cable modem'], 'Wireless bridge.'],
+    ['Which ISP device connects to a coaxial cable line?', 'Cable modem', ['ONT', 'DSL modem', 'Loopback plug'], 'DOCSIS.']
+  ]);
+  RK.extra(TR, '2.6', [
+    ['What is the default gateway?', 'The router address used to reach other networks', ['The DNS server', 'The DHCP lease time', 'The MAC address'], 'Way out.'],
+    ['Which address tests the local TCP/IP stack?', '127.0.0.1', ['169.254.1.1', '192.168.1.1', '8.8.8.8'], 'Loopback.'],
+    ['What does NAT on a SOHO router do?', 'Lets many private addresses share one public address', ['Assigns MAC addresses', 'Encrypts Wi-Fi', 'Resolves names'], 'Address translation.'],
+    ['How many bits is an IPv6 address?', '128', ['32', '48', '64'], 'IPv6.'],
+    ['Which command requests a new DHCP address on Windows?', 'ipconfig /renew', ['ipconfig /flushdns', 'arp -a', 'getmac'], 'Renew.'],
+    ['A subnet mask of 255.255.255.0 is written in CIDR as:', '/24', ['/8', '/16', '/32'], '24 network bits.']
+  ]);
+  RK.extra(TR, '2.7', [
+    ['Which connection is often symmetric (same upload and download)?', 'Fiber', ['Cable', 'DSL', 'Geostationary satellite'], 'Fiber.'],
+    ['Which connection shares bandwidth with neighbors on the same node?', 'Cable', ['Fiber point-to-point', 'DSL', 'Satellite'], 'Shared coax.'],
+    ['Which network type is the Internet an example of?', 'WAN', ['LAN', 'PAN', 'SAN'], 'Largest WAN.'],
+    ['A city links its libraries with its own fiber ring. Network type?', 'MAN', ['PAN', 'SAN', 'WLAN'], 'Metropolitan.'],
+    ['What does a WISP need between the customer and the tower?', 'Line of sight', ['A phone line', 'Coax', 'A SIM card'], 'Fixed wireless.'],
+    ['Which is the best quick Internet for a 3-month job site trailer?', 'Cellular', ['New fiber install', 'DSL', 'SAN'], 'Fast to deploy.']
+  ]);
+  RK.extra(TR, '2.8', [
+    ['Which tool removes the outer jacket of a cable?', 'Cable stripper', ['Crimper', 'Toner probe', 'Network tap'], 'Strip.'],
+    ['Which tool terminates wires into a keystone jack?', 'Punchdown tool', ['Crimper', 'Loopback plug', 'Wi-Fi analyzer'], 'Punch down.'],
+    ['A cable tester reports pins 1 and 2 swapped. What is the problem?', 'Miswired connector', ['Bad switch port', 'Wrong DNS', 'Weak Wi-Fi'], 'Re-terminate.'],
+    ['Which device copies all traffic on a link to a monitoring tool?', 'Network tap', ['Toner probe', 'Crimper', 'PoE injector'], 'Passive copy.'],
+    ['What does T568A swap compared to T568B?', 'The orange and green pairs', ['The blue and brown pairs', 'Nothing', 'Pins 4 and 5 only'], 'Pairs 2 and 3.'],
+    ['Which tool would you use to survey Wi-Fi signal strength across an office?', 'Wi-Fi analyzer', ['Cable tester', 'Punchdown tool', 'Crimper'], 'Wireless survey.'],
+    ['A new wall jack shows no link. The patch cable tests good. What do you test next?', 'The in-wall run with a cable tester', ['The DNS server', 'The DHCP lease', 'The Wi-Fi channel'], 'Isolate the run.'],
+    ['Which tool attaches an RJ11 connector to phone cable?', 'Crimper', ['Punchdown tool', 'Toner probe', 'Network tap'], 'Same tool, different die.'],
+    ['Which tool would a security team use to feed an IDS a copy of all traffic on a link?', 'Network tap', ['Loopback plug', 'Cable stripper', 'Toner probe'], 'Passive copy.']
+  ]);
+  RK.cards(TR, '2.1', [['445', 'SMB/CIFS file sharing.'], ['3389', 'RDP.'], ['110 vs 143', 'POP3 download vs IMAP keep on server.'], ['67/68', 'DHCP (UDP).'], ['TCP vs UDP', 'Reliable, handshake vs connectionless, fast.']]);
+  RK.cards(TR, '2.2', [['Channels 1/6/11', 'Non-overlapping 2.4 GHz.'], ['802.11ax', 'Wi-Fi 6/6E, OFDMA.'], ['Channel width', 'Wider = faster but fewer channels.'], ['RFID vs NFC', 'Tags read by scanners vs cm-range tap.']]);
+  RK.cards(TR, '2.3', [['AAA', 'Authentication, authorization, accounting.'], ['Syslog', 'Central log collection.'], ['UTM', 'All-in-one security appliance.'], ['SCADA', 'Industrial control; isolate.']]);
+  RK.cards(TR, '2.4', [['SPF / DKIM / DMARC', 'Allowed senders / signature key / policy.'], ['MX', 'Mail exchanger.'], ['Reservation vs exclusion', 'Same address per MAC vs never handed out.'], ['VLAN', 'Logical network on shared switches.']]);
+  RK.cards(TR, '2.5', [['PoE af/at/bt', '15.4 / 30 / 60–100 W.'], ['ONT', 'Fiber termination at customer.'], ['Managed switch', 'VLANs, port security, monitoring.'], ['MAC address', '48-bit physical address; OUI = vendor.']]);
+  RK.cards(TR, '2.6', [['APIPA', '169.254.x.x — no DHCP.'], ['Private ranges', '10/8, 172.16/12, 192.168/16.'], ['fe80::', 'IPv6 link-local.'], ['Static vs dynamic', 'Servers/printers vs clients.']]);
+  RK.cards(TR, '2.7', [['Satellite', 'Anywhere; high latency (GEO).'], ['WISP', 'Fixed wireless from a tower.'], ['SAN', 'Block-storage network.'], ['MAN', 'City-wide network.']]);
+  RK.cards(TR, '2.8', [['T568B', 'w/o, o, w/g, bl, w/bl, g, w/br, br.'], ['Toner probe', 'Find unlabeled cables.'], ['Loopback plug', 'Test a port/NIC.'], ['Network tap', 'Copies link traffic.']]);
 })();
 
 ;
