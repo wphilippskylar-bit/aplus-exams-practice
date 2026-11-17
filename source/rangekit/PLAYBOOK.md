@@ -60,7 +60,7 @@ Honesty rules for the grader:
 | Console | Coverage | Depth | Hands-on | Structure | Assessment | **Now** | What moves it up |
 |---|---|---|---|---|---|---|---|
 | Net+ Range (N10-009) | 19 | 17 | 18 | 19 | 17 | **90** | Hand-review the keyword-sorted question bank per objective; multi-step tickets for 3.4 and 5.4 |
-| A+ Range — Core 2 Domain 1 (rebuilt) | 19 | 17 | 18 | 19 | 17 | **90** | Same as above |
+| A+ Range — Core 2 Domain 1 (rebuilt) | 18 | 15 | 17 | 19 | 16 | **85** | Callouts on every part (43% now), paired labs on 85%+ of parts (77% now), 15+ questions per objective (13 now), bullet audit |
 | A+ Range — the other 8 domains | 12 | 6 | 5 | 6 | 15 | **44** | Rebuild (queue below) |
 | Security+ Range (SY0-701) | 16 | 9 | 8 | 12 | 18 | **63** | Parts, callouts, paired labs on all 28 objectives |
 | Cloud Range (15 cert tracks) | 10 | 10 | 10 | 9 | 12 | **51** | One ladder rebuilt by official domain → objective |
@@ -82,6 +82,7 @@ Each item is one sitting. Finish, run the checker, push, tick it off here.
 
 **A+ Range** (`aplus-exams-practice`) — objective lists are in `source/objectives/`.
 - [x] Core 2 Domain 1 — Operating Systems (1.1–1.11)
+- [ ] Core 2 Domain 1 depth pass to reach 90: add the missing On-the-job / Exam-trap callouts, pair labs with the parts that have none (1.1 p3, 1.2 p1, 1.3 p1, 1.4 p3, 1.5 p3, 1.8 p2, 1.9 p1, 1.11 p1), top up 1.11 and 1.10 to 15+ questions, run a bullet audit against `source/objectives/220-1202-core2.md`.
 - [ ] Core 2 Domain 4 — Operational Procedures (4.1–4.10). **4.8 scripting and 4.9 remote access get terminal labs** (ssh, mstsc, Enter-PSSession, winrm). Wrap lab id `c2-d4-wrap`.
 - [ ] Core 2 Domain 2 — Security (2.1–2.11). **2.2 covers Active Directory** (domain join, OUs, home folders, GPO, security groups, folder redirection): scenario labs + PowerShell terminal lab. Wrap lab `c2-d2-wrap`.
 - [ ] Core 2 Domain 3 — Software Troubleshooting (3.1–3.4). Symptom → cause → fix. Wrap lab `c2-d3-wrap`.
@@ -180,7 +181,7 @@ A finished objective passes when someone who has never seen the topic can:
 4. score 90%+ on the objective test;
 and when a working professional reading it finds nothing wrong, nothing missing from the official bullets, and at least one thing per part they would actually say to a junior.
 
-Use **Core 2 objectives 1.5 and 1.9** (`src/rk-c2d1a.js`, `rk-c2d1b.js`) as the model to copy.
+Use **Core 2 objectives 1.5 and 1.9** (`src/rk-c2d1a.js`, `rk-c2d1b.js`) as the model to copy, and Net+ (`g-depth.js`) for how callouts are added to every part.
 
 ## 6. Facts about each repo
 
