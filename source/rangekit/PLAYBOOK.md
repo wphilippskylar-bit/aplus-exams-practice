@@ -61,7 +61,8 @@ Honesty rules for the grader:
 |---|---|---|---|---|---|---|---|
 | Net+ Range (N10-009) | 19 | 17 | 18 | 19 | 17 | **90** | Hand-review the keyword-sorted question bank per objective; multi-step tickets for 3.4 and 5.4 |
 | A+ Range — Core 2 Domain 1 (rebuilt) | 19 | 17 | 18 | 19 | 17 | **90** | Hand-review the auto-sorted question bank (caps assessment at 18) |
-| A+ Range — the other 8 domains | 12 | 6 | 5 | 6 | 15 | **44** | Rebuild (queue below) |
+| A+ Range — Core 2 Domain 4 (rebuilt) | 19 | 17 | 17 | 19 | 17 | **89** | Hands-on capped at 17: 4.1–4.4 are scenario objectives with pick/order labs only — add one multi-step ticket lab (e.g. a ticketing-system or backup-restore simulation) |
+| A+ Range — the other 7 domains | 12 | 6 | 5 | 6 | 15 | **44** | Rebuild (queue below) |
 | Security+ Range (SY0-701) | 16 | 9 | 8 | 12 | 18 | **63** | Parts, callouts, paired labs on all 28 objectives |
 | Cloud Range (15 cert tracks) | 10 | 10 | 10 | 9 | 12 | **51** | One ladder rebuilt by official domain → objective |
 | Code Range (11 skill tracks) | 16 | 14 | 18 | 10 | 12 | **70** | Part format; Windows and Remote Access tracks |
@@ -83,7 +84,7 @@ Each item is one sitting. Finish, run the checker, push, tick it off here.
 **A+ Range** (`aplus-exams-practice`) — objective lists are in `source/objectives/`.
 - [x] Core 2 Domain 1 — Operating Systems (1.1–1.11)
 - [x] Core 2 Domain 1 depth pass to reach 90 (avg 172 words/part, 100% paired labs, 100% callouts, 11 terminal labs, 15+ questions per objective, 262/262 official bullets): add the missing On-the-job / Exam-trap callouts, pair labs with the parts that have none (1.1 p3, 1.2 p1, 1.3 p1, 1.4 p3, 1.5 p3, 1.8 p2, 1.9 p1, 1.11 p1), top up 1.11 and 1.10 to 15+ questions, run a bullet audit against `source/objectives/220-1202-core2.md`.
-- [ ] Core 2 Domain 4 — Operational Procedures (4.1–4.10). **4.8 scripting and 4.9 remote access get terminal labs** (ssh, mstsc, Enter-PSSession, winrm). Wrap lab id `c2-d4-wrap`.
+- [x] Core 2 Domain 4 — Operational Procedures (4.1–4.10), 17 Nov: 25 parts, 6 terminal labs (PowerShell script, bash script review, RDP, SSH keys, WinRM, domain shift), 437/437 bullets. **4.8 scripting and 4.9 remote access get terminal labs** (ssh, mstsc, Enter-PSSession, winrm). Wrap lab id `c2-d4-wrap`.
 - [ ] Core 2 Domain 2 — Security (2.1–2.11). **2.2 covers Active Directory** (domain join, OUs, home folders, GPO, security groups, folder redirection): scenario labs + PowerShell terminal lab. Wrap lab `c2-d2-wrap`.
 - [ ] Core 2 Domain 3 — Software Troubleshooting (3.1–3.4). Symptom → cause → fix. Wrap lab `c2-d3-wrap`.
 - [ ] Core 1 Domain 1 — Mobile Devices (1.1–1.3). Wrap lab `c1-d1-wrap`.
