@@ -32,6 +32,10 @@
 "2.8": "device encryption;screen lock;facial recognition;PIN;fingerprint;pattern;swipe;configuration profile;OS updates;application updates;antivirus;anti-malware;content filtering;locator;remote wipe;remote backup;failed log-in;MDM;BYOD;corporate-owned;profile security",
 "2.9": "drilling;shredding;degaussing;incineration;erasing;wiping;low-level format;standard format;third-party vendor;certificate of destruction;regulatory;environmental",
 "2.10": "default password;IP filtering;firmware;content filtering;physical placement;UPnP;screened subnet;secure management access;SSID;disable SSID broadcast;encryption;guest access;unused ports;port forwarding",
-"2.11": "trusted sources;hashing;untrusted sources;patching;extensions;plug-ins;password manager;certificate;pop-up blocker;browsing data;cache;private-browsing;synchronization;ad blocker;proxy;secure DNS;feature management"
+"2.11": "trusted sources;hashing;untrusted sources;patching;extensions;plug-ins;password manager;certificate;pop-up blocker;browsing data;cache;private-browsing;synchronization;ad blocker;proxy;secure DNS;feature management",
+"3.1": "blue screen;degraded performance;boot;frequent shutdowns;services not starting;crash;low memory;USB controller;instability;no OS found;slow profile;time drift",
+"3.2": "fails to launch;fails to close;fails to update;fails to install;slow to respond;OS fails to update;battery;random reboots;Bluetooth;Wi-Fi;NFC;autorotate",
+"3.3": "unofficial;developer mode;root;jailbreak;spoof;high network traffic;degraded response;data-usage limit;limited;no internet;ads;fake security warnings;unexpected application behavior;leaked",
+"3.4": "unable to access the network;desktop alerts;false alerts;altered system;missing;renamed;inability to access files;unwanted notifications;OS update failures;pop-ups;certificate warnings;redirection;degraded browser performance"
 }
 }
